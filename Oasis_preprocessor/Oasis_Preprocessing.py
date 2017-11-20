@@ -112,8 +112,17 @@ with open('{}/all.txt'.format(res_folder), 'w') as outfile:
         outfile.write(line)
 
 print('Importing resistivity data')
-importfile = pd.read_csv('{}/all.txt'.format(res_folder),sep=';', index_col=False, skiprows=1,names=["Distance","Depth","Rho 1","Rho 2","Rho 3","Rho 4","Rho 5","Rho 6","Rho 7","Rho 8","Rho 9","Rho 10","C1","C2","P1","P2","P3","P4","P5","P6","P7","P8","P9","P10","P11","Latitude","Longitude","In_p","In_n","V1_p","V1_n","V2_p","V2_n","V3_p","V3_n","V4_p","V4_n","V5_p","V5_n","V6_p","V6_n","V7_p","V7_n","V8_p","V8_n","V9_p","V9_n","V10_p","V10_n","GPSString","UTC","Latitude2","D1","Longitude2","D2","Fix Quality","Satellites","HDOP","Altitude","D3","Height of Geoid"
-], usecols=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60])
+importfile = pd.read_csv('{}/all.txt'.format(res_folder), sep=';', index_col=False, skiprows=1,
+                         names=["Distance", "Depth", "Rho 1", "Rho 2", "Rho 3", "Rho 4", "Rho 5", "Rho 6", "Rho 7",
+                                "Rho 8", "Rho 9", "Rho 10", "C1", "C2", "P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8",
+                                "P9", "P10", "P11", "Latitude", "Longitude", "In_p", "In_n", "V1_p", "V1_n", "V2_p",
+                                "V2_n", "V3_p", "V3_n", "V4_p", "V4_n", "V5_p", "V5_n", "V6_p", "V6_n", "V7_p", "V7_n",
+                                "V8_p", "V8_n", "V9_p", "V9_n", "V10_p", "V10_n", "GPSString", "UTC", "Latitude2", "D1",
+                                "Longitude2", "D2", "Fix Quality", "Satellites", "HDOP", "Altitude", "D3",
+                                "Height of Geoid"],
+                         usecols=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+                                  24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44,
+                                  45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60])
 
 print('Processing resistivity data')
 
