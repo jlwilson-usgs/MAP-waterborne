@@ -24,6 +24,8 @@ import os
 from shapely.geometry import Point
 import geopandas as gp
 import numpy as np
+import shutil, glob
+import fiona
 
 #%%
 # Defining bandpass filter to filter resistivity data channels
@@ -47,14 +49,36 @@ def rolling_avg(df, column1, column2, width):
 #%%
 Tk().withdraw() 
 tkMessageBox.showinfo("Directions", "For this script to work, you must have all resistivity .txt files that you want to combine in one folder. All QW .csv files must also be in one folder. It may be the same folder.")
-res_folder = askdirectory(title="Select folder that contains all raw resistivity files for processing...") # show an "Open" dialog box and return the path to the selected file
+
+# Resistivity files
+res_folder = askdirectory(title="Select folder that contains all raw resistivity files for processing...")  # show an "Open" dialog box and return the path to the selected file
+if not glob.glob('{}/*.txt'.format(res_folder)):
+    tkMessageBox.showerror("FILE ERROR", "No resistivity files contained within folder")
+    exit()
+
+# Water Quality Files
 wq_folder = askdirectory(title="Select folder that contains all raw water-quality data for processing...")
-ini_file = askopenfilename(title="Select ini file used to collect the resistivity data")
+if not glob.glob('{}/*.csv'.format(res_folder)):
+    tkMessageBox.showerror("FILE ERROR", "No water quality files contained within folder")
+    exit()
+
+# Initialization File
+ini_file = askopenfilename(title="Select ini file used to collect the resistivity data",
+                           filetypes=[("INI Files", "*.ini")])
+if not ini_file:
+    tkMessageBox.showerror("FILE ERROR", "No INI file selected")
+    exit()
+
+# Save File Location
 directory = askdirectory(title="Select directory to save the reordered resistivity and water-quality data")
 
-#%%
+# %% NHD geodatabase Location
 gdb_dir = askdirectory(title="Select directory where NHD geodatabase is located")
-streams = gp.read_file(gdb_dir)
+try:
+    streams = gp.read_file(gdb_dir)
+except:
+    tkMessageBox.showerror("FILE ERROR", "No NHD geodatabase selected")
+    exit()
 stream_df=pd.DataFrame(streams)
 #%%
 str(stream_df.ix[3,'geometry'])
@@ -89,7 +113,6 @@ except:
 #%%
 # Preprocessing Resistivity Data
 print('Aggregating raw data files')
-import shutil, glob
 outfilename="{}/all.txt".format(res_folder)
 
 with open(outfilename, 'wb') as outfile:
