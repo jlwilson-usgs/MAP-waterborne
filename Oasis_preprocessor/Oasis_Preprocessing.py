@@ -179,17 +179,16 @@ data_cols = ('Ohm_m',
 for x in data_cols:
     importfile[x]=np.nan
 importfile.drop(['D1','D2','D3', 'File'], inplace=True, axis=1)
-importfile.insert(0,'File',"")
+importfile.insert(0,'File',float("NaN"))
 
-# Demarcate which file data came from and remove headers from combined data --> NOTE: THIS TAKES A WHILE TO RUN
-j=1
-for x in range(0,len(importfile.Distance)):
-    if importfile.ix[x,"Distance"]=="Distance":
-        j+=1
-    elif importfile.ix[x,"Distance"]!="Distance":
-        importfile.ix[x,"File"]=j
-    else:
-        break
+# Demarcate which file data came from and remove headers from combined data
+j = 1
+for x in range(0, len(importfile.Distance)):
+    if importfile.ix[x, "Distance"] == "0.00":
+        importfile.ix[x, "File"] = j
+        j += 1
+importfile["File"].fillna(method='ffill', inplace=True)
+
 # Removes bad data files
 importfile = importfile.loc[importfile.GPSString == 'GPGGA', :]
 
@@ -246,17 +245,6 @@ file1 = importfile['File1']
 importfile.drop(['File1', 'File'], axis=1, inplace=True)
 importfile.insert(0, 'File', file1)
 
-#%%
-# Calculating the distance from UTM coordinates
-importfile['Cum_dist']=0
-
-for i in range(1,len(importfile['Distance'])):
-    importfile.ix[i,'Cor_Dist']=np.sqrt(np.square(importfile.ix[i,'X_UTM']-importfile.ix[i-1,'X_UTM'])+np.square(importfile.ix[i,'Y_UTM']-importfile.ix[i-1,'Y_UTM']))
-    importfile.ix[i,'Cum_dist']=importfile.ix[i-1,'Cum_dist']+importfile.ix[i,'Cor_Dist']
-
-# Here is where we might search for gaps in the data...
-
-#%%
 # Import INI file
         
 ini = pd.read_csv(ini_file, index_col=None,sep='=')
@@ -294,6 +282,18 @@ x,y = [list(t) for t in zip(*map(getXY, centroidseries))]
 
 importfile['X_UTM']=x
 importfile['Y_UTM']=y
+
+#%%
+# Calculating the distance from UTM coordinates
+importfile['Cum_dist']=0
+
+for i in range(1,len(importfile['Distance'])):
+    importfile.ix[i,'Cor_Dist']=np.sqrt(np.square(importfile.ix[i,'X_UTM']-importfile.ix[i-1,'X_UTM'])+np.square(importfile.ix[i,'Y_UTM']-importfile.ix[i-1,'Y_UTM']))
+    importfile.ix[i,'Cum_dist']=importfile.ix[i-1,'Cum_dist']+importfile.ix[i,'Cor_Dist']
+
+# Here is where we might search for gaps in the data...
+
+#%%
 
 #%%
 #Replacing all NaNs with "*" and dropping geometry column
