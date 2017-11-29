@@ -26,6 +26,7 @@ import geopandas as gp
 import numpy as np
 import shutil, glob
 import fiona
+from math import radians, cos, sin, asin, sqrt
 
 #%%
 # Defining bandpass filter to filter resistivity data channels
@@ -46,6 +47,21 @@ def rolling_avg(df, column1, column2, width):
     df[column1+'_rollavg']=df[column2]
     df[column1+'_rollavg']= pd.rolling_mean(df[column1+'_rollavg'],window=width)
 
+def haversine(lon1, lat1, lon2, lat2):
+    """
+    Calculate the great circle distance between two points
+    on the earth (specified in decimal degrees)
+    """
+    # convert decimal degrees to radians
+    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+
+    # haversine formula
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+    c = 2 * asin(sqrt(a))
+    r = 6371  # Radius of earth in kilometers. Use 3956 for miles
+    return c * r
     
 #%%
 Tk().withdraw() 
@@ -116,13 +132,88 @@ except:
     pass  # This makes me nervous- what errors are you avoiding? dsw 20171128
 
 #%%
-
 # Export renamed files to 'Raw_Data_Renamed' directory
+print("Verifying continuity of surveys")
+# Correct names of columns in resistivity raw data files
+colNames = ["Distance", "Depth", "Rho 1", "Rho 2", "Rho 3", "Rho 4", "Rho 5", "Rho 6", "Rho 7", "Rho 8", "Rho 9",
+            "Rho 10", "C1", "C2", "P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10", "P11", "Latitude",
+            "Longitude", "In_p", "In_n", "V1_p", "V1_n", "V2_p", "V2_n", "V3_p", "V3_n", "V4_p", "V4_n", "V5_p", "V5_n",
+            "V6_p", "V6_n", "V7_p", "V7_n", "V8_p", "V8_n", "V9_p", "V9_n", "V10_p", "V10_n", "GPSString", "HDOP",
+            "EXTRANEOUS"]
+outfilename = "{}\\all.txt".format(res_folder)
+# Grab starting and ending points of each survey to reorder
+# NOTE: THIS ASSUMES CONTINUITY WITHIN SURVEY - NO TURNING BOAT AROUND WITHIN SURVEY LINE
+subset = pd.DataFrame(columns=["StartLat", "EndLat", "StartLong", "EndLong", "Filename"])
+for filename in glob.glob('{}/*.txt'.format(res_folder)):
+    if filename == outfilename:
+        continue
+    # print(filename)
+    temp = pd.read_csv(filename, sep=';').reset_index()
+    temp.columns = colNames
+
+    # Check if survey is bad (only one data point in survey)
+    if len(temp) < 2:
+        continue
+
+    # Convert the starting and ending coordinates of the survey from degrees decimal minutes to decimal degrees
+    try:
+        startLat = float(str(temp.loc[0, "Latitude"])[0:2]) + float(str(temp.loc[0, "Latitude"])[2:]) / 60
+        endLat = float(str(temp.loc[len(temp)-1, "Latitude"])[0:2]) + float(str(temp.loc[len(temp)-1, "Latitude"])[2:]) / 60
+        startLong = float(str(temp.loc[0, "Longitude"])[0:3]) - float(str(temp.loc[0, "Longitude"])[3:]) / 60
+        endLong = float(str(temp.loc[len(temp)-1, "Longitude"])[0:3]) - float(str(temp.loc[len(temp)-1, "Longitude"])[3:]) / 60
+    except ValueError:
+        tkMessageBox.showerror("FORMATTING ERROR",
+                               "Value Error: could not convert latitude or longitude in " + filename)
+        exit()
+    # Check to see if Longitude is formatted like we want it to
+    if startLong > 0 or endLong > 0:
+        tkMessageBox.showerror("FORMATTING ERROR",
+                               "Error: please format longitude with negative sign for file " + filename)
+        exit()
+    subset = subset.append(pd.DataFrame([[startLat, endLat, startLong, endLong, filename]],
+                                        columns=["StartLat", "EndLat", "StartLong", "EndLong", "Filename"])).reset_index(drop=True)
+
+# Reorganize files based upon their location to one another
+reorderedSubset = pd.DataFrame(columns=["StartLat", "EndLat", "StartLong", "EndLong", "Filename", "Distance"])
+# Pick starting survey as one where start is farthest away from finish
+subset["Distance"] = 0.00
+for i, f in enumerate(subset.Filename):
+    startLat = subset.loc[i, "StartLat"]
+    startLong = subset.loc[i, "StartLong"]
+    dist = 0
+    # Find the greatest distance between all lines
+    for i2, f2 in enumerate(subset.Filename):
+        endLat = subset.loc[i2, "EndLat"]
+        endLong = subset.loc[i2, "EndLong"]
+        dist = max(dist, haversine(startLong, startLat, endLong, endLat))
+    subset.at[i, "Distance"] = dist
+# Start survey is one with greatest starting distance from any survey
+reorderedSubset = reorderedSubset.append(subset.loc[subset["Distance"].idxmax(), :]).reset_index(drop=True)
+subset.drop([subset["Distance"].idxmax()], inplace=True)
+subset.reset_index(drop=True, inplace=True)
+
+# Reorder remaining surveys based on distance from the end of previous survey
+while len(subset) > 0:
+    startLat = reorderedSubset.loc[len(reorderedSubset)-1, "StartLat"]
+    startLong = reorderedSubset.loc[len(reorderedSubset)-1, "StartLong"]
+    subset["Distance"] = 999999999.00
+    # The next line "starts" closest to the "end" of the previous line
+    for i2, f2 in enumerate(subset.Filename):
+        endLat = subset.loc[i2, "EndLat"]
+        endLong = subset.loc[i2, "EndLong"]
+        subset.at[i2, "Distance"] = haversine(startLong, startLat, endLong, endLat)
+    reorderedSubset = reorderedSubset.append(subset.loc[subset["Distance"].idxmin(), :]).reset_index(drop=True)
+    subset.drop([subset["Distance"].idxmin()], inplace=True)
+    subset.reset_index(drop=True, inplace=True)
+
+# Create new filenames for surveys based on their order and export directory to csv file
+
+
+# Rename the actual files in the renamed directory
     
 #%%
 # Preprocessing Resistivity Data
 print('Aggregating raw data files')
-outfilename="{}/all.txt".format(res_folder)
 
 # Copy resistivity data into a single file
 with open(outfilename, 'wb') as outfile:
