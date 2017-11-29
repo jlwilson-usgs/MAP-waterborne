@@ -230,25 +230,26 @@ for col in importfile.columns[1:]:
         pass
 
 # Creates new column with new incremental file count
-importfile['File1']="1"
-j=1
-for x in range(1,len(importfile.Distance)):
-    if importfile.ix[x,"File"]==importfile.ix[x-1,"File"]:
-        importfile.ix[x,"File1"]=importfile.ix[x-1,"File1"]
-        
-    elif importfile.ix[x,"File"]!=importfile.ix[x-1,"File"]:
-        j+=1
-        importfile.ix[x,"File1"]=j
-    else:
-        break
+importfile.ix[0, 'File1'] = "1"
+j = 2
+for x in range(1, len(importfile.Distance)):
+    if importfile.ix[x, "File"] != importfile.ix[x-1, "File"]:
+        importfile.ix[x, "File1"] = j
+        j += 1
+importfile["File1"].fillna(method='ffill', inplace=True)
 file1 = importfile['File1']
 importfile.drop(['File1', 'File'], axis=1, inplace=True)
 importfile.insert(0, 'File', file1)
 
 # Import INI file
-        
-ini = pd.read_csv(ini_file, index_col=None,sep='=')
-depthoffset = float(ini.ix['DepthOffset','[SwitchPro]'])
+try:
+    ini = pd.read_csv(ini_file, index_col=None, sep='=')
+    depthoffset = float(ini.ix['DepthOffset', '[SwitchPro]'])
+    if depthoffset > 0:
+        tkMessageBox.showwarning("WARNING", "Positive value for depth offset from INI file")
+except:
+    tkMessageBox.showerror("FILE ERROR", "No INI file selected or incorrect file format...")
+    exit()
 
 #%%
 # Applying the bandpass filter and rolling average
