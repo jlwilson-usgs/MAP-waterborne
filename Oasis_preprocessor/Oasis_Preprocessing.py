@@ -27,6 +27,7 @@ import numpy as np
 import shutil, glob
 import fiona
 from math import radians, cos, sin, asin, sqrt
+from shutil import copyfile
 
 #%%
 # Defining bandpass filter to filter resistivity data channels
@@ -144,6 +145,7 @@ outfilename = "{}\\all.txt".format(res_folder)
 # Grab starting and ending points of each survey to reorder
 # NOTE: THIS ASSUMES CONTINUITY WITHIN SURVEY - NO TURNING BOAT AROUND WITHIN SURVEY LINE
 subset = pd.DataFrame(columns=["StartLat", "EndLat", "StartLong", "EndLong", "Filename"])
+excludeSurveys = pd.DataFrame(columns=["Filename", "Number_of_Data_Points"])
 for filename in glob.glob('{}/*.txt'.format(res_folder)):
     if filename == outfilename:
         continue
@@ -151,8 +153,11 @@ for filename in glob.glob('{}/*.txt'.format(res_folder)):
     temp = pd.read_csv(filename, sep=';').reset_index()
     temp.columns = colNames
 
-    # Check if survey is bad (only one data point in survey)
-    if len(temp) < 2:
+    # Check if survey is bad (500m or 100 point threshold)
+    if len(temp) < 100:
+        excludeSurveys = excludeSurveys.append(pd.DataFrame([[filename, str(len(temp))]],
+                                                            columns=["Filename",
+                                                                     "Number_of_Data_Points"])).reset_index(drop=True)
         continue
 
     # Convert the starting and ending coordinates of the survey from degrees decimal minutes to decimal degrees
@@ -173,8 +178,12 @@ for filename in glob.glob('{}/*.txt'.format(res_folder)):
     subset = subset.append(pd.DataFrame([[startLat, endLat, startLong, endLong, filename]],
                                         columns=["StartLat", "EndLat", "StartLong", "EndLong", "Filename"])).reset_index(drop=True)
 
+# Track files that were removed due to their length
+excludeSurveys.to_csv(path + "\\EXCLUDED_SURVEYS.txt", index=False)
+
 # Reorganize files based upon their location to one another
 reorderedSubset = pd.DataFrame(columns=["StartLat", "EndLat", "StartLong", "EndLong", "Filename", "Distance"])
+reorderedSubset["Reverse"] = False
 # Pick starting survey as one where start is farthest away from finish
 subset["Distance"] = 0.00
 for i, f in enumerate(subset.Filename):
@@ -194,22 +203,39 @@ subset.reset_index(drop=True, inplace=True)
 
 # Reorder remaining surveys based on distance from the end of previous survey
 while len(subset) > 0:
-    startLat = reorderedSubset.loc[len(reorderedSubset)-1, "StartLat"]
-    startLong = reorderedSubset.loc[len(reorderedSubset)-1, "StartLong"]
+    endLat = reorderedSubset.loc[len(reorderedSubset)-1, "EndLat"]
+    endLong = reorderedSubset.loc[len(reorderedSubset)-1, "EndLong"]
     subset["Distance"] = 999999999.00
+    subset["ReverseDistance"] = 999999999.00
     # The next line "starts" closest to the "end" of the previous line
     for i2, f2 in enumerate(subset.Filename):
-        endLat = subset.loc[i2, "EndLat"]
-        endLong = subset.loc[i2, "EndLong"]
+        startLat = subset.loc[i2, "StartLat"]
+        startLong = subset.loc[i2, "StartLong"]
         subset.at[i2, "Distance"] = haversine(startLong, startLat, endLong, endLat)
-    reorderedSubset = reorderedSubset.append(subset.loc[subset["Distance"].idxmin(), :]).reset_index(drop=True)
+        subset.at[i2, "ReverseDistance"] = haversine(subset.loc[i2, "EndLong"], subset.loc[i2, "EndLat"], endLong, endLat)
+
+    # Check to see if next survey section is reversed
+    if min(subset["Distance"]) <= min(subset["ReverseDistance"]):
+        reorderedSubset = reorderedSubset.append(subset.loc[subset["Distance"].idxmin(), :]).reset_index(drop=True)
+    else:
+        reorderedSubset = reorderedSubset.append(subset.loc[subset["ReverseDistance"].idxmin(), :]).reset_index(drop=True)
+        reorderedSubset.loc[len(reorderedSubset)-1, "Reverse"] = True
     subset.drop([subset["Distance"].idxmin()], inplace=True)
     subset.reset_index(drop=True, inplace=True)
 
 # Create new filenames for surveys based on their order and export directory to csv file
-
+riverName = "Floodway"  # ------------------------------------------------------------> HARDCODED, NEED TO UPDATE
+reorderedSubset.drop(["StartLat", "EndLat", "StartLong", "EndLong", "Distance", "ReverseDistance"], axis=1, inplace=True)
+reorderedSubset["NewFilename"] = reorderedSubset.index + 1
+reorderedSubset["NewFilename"] = directory + "\\" + riverName + "_" + reorderedSubset["NewFilename"].apply(lambda k: str(k).zfill(3)) + ".txt"
+reorderedSubset.to_csv(path + "\\RENAMED_RESISTIVITY_FILE_DIRECTORY.txt")
 
 # Rename the actual files in the renamed directory
+# Write new files to "path"
+for i, fOld in enumerate(reorderedSubset["Filename"]):
+    fNew = path + "\\" + reorderedSubset.loc[i, "NewFilename"].replace('/', '\\').split('\\')[-1]
+    test = "akjdnma;lh"
+    copyfile(fOld, test)
     
 #%%
 # Preprocessing Resistivity Data
