@@ -28,6 +28,9 @@ import shutil, glob
 import fiona
 from math import radians, cos, sin, asin, sqrt
 from shutil import copyfile
+import logging
+import sys
+import traceback
 
 #%%
 # Defining bandpass filter to filter resistivity data channels
@@ -63,7 +66,13 @@ def haversine(lon1, lat1, lon2, lat2):
     c = 2 * asin(sqrt(a))
     r = 6371  # Radius of earth in kilometers. Use 3956 for miles
     return c * r
-    
+
+def catchEmAll(*exc_info):
+    errormessage = "".join(traceback.format_exception(*exc_info))
+    logging.critical("Uncaught error encountered: \n%s", errormessage)
+
+sys.excepthook = catchEmAll
+
 #%%
 Tk().withdraw() 
 tkMessageBox.showinfo("Directions", "For this script to work, you must have all resistivity .txt files that you want to combine in one folder. All QW .csv files must also be in one folder. It may be the same folder.")
@@ -79,12 +88,14 @@ directory = "D:\\Mississippi Alluvial Plain\\2018\\Waterborne Resistivity Script
 res_folder = askdirectory(title="Select folder that contains all raw resistivity files for processing...")  # show an "Open" dialog box and return the path to the selected file
 if not glob.glob('{}/*.txt'.format(res_folder)):
     tkMessageBox.showerror("FILE ERROR", "No resistivity files contained within folder or incorrect format")
+    logging.error("No text files found within selected resistivity folder\n")
     exit()
 
 # Water Quality Files
 wq_folder = askdirectory(title="Select folder that contains all raw water-quality data for processing...")
 if not glob.glob('{}/*.csv'.format(wq_folder)):
     tkMessageBox.showerror("FILE ERROR", "No water quality files contained within folder or incorrect format")
+    logging.error("No csv files found within the selected water quality folder\n")
     exit()
 
 # Initialization File
@@ -92,6 +103,7 @@ ini_file = askopenfilename(title="Select ini file used to collect the resistivit
                            filetypes=[("INI Files", "*.ini")])
 if not ini_file:
     tkMessageBox.showerror("FILE ERROR", "No INI file selected")
+    logging.error("No INI file selected by the user\n")
     exit()
 
 # Save File Location
@@ -119,6 +131,10 @@ for x in range(0,len(stream_df.FCode)):
 #%%
 
 """
+# Record logging events to log file
+logging.basicConfig(filename=directory+"\\OASIS_PREPROCESSING_LOGFILE.txt", format='%(asctime)s %(levelname)s %(message)s',
+                    datefmt='%m/%d/%Y %I:%M:%S %p', filemode='w', level=logging.INFO)
+
 #%%
 
 # Create crosstab table and export as a .txt file showing old and new names
@@ -129,12 +145,15 @@ path = directory + r'/Raw_Data_Renamed'
 try:
     os.makedirs(os.path.join(path))
     print('Raw data folder created')
+    logging.info("Raw data folder created\n")
 except:
+    logging.info("Unable to create raw data folder or folder already exists\n")
     pass  # This makes me nervous- what errors are you avoiding? dsw 20171128
 
 #%%
 # Export renamed files to 'Raw_Data_Renamed' directory
 print("Verifying continuity of surveys")
+logging.info("Verifying continuity of surveys\n")
 # Correct names of columns in resistivity raw data files
 colNames = ["Distance", "Depth", "Rho 1", "Rho 2", "Rho 3", "Rho 4", "Rho 5", "Rho 6", "Rho 7", "Rho 8", "Rho 9",
             "Rho 10", "C1", "C2", "P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10", "P11", "Latitude",
@@ -158,6 +177,8 @@ for filename in glob.glob('{}/*.txt'.format(res_folder)):
         excludeSurveys = excludeSurveys.append(pd.DataFrame([[filename, str(len(temp))]],
                                                             columns=["Filename",
                                                                      "Number_of_Data_Points"])).reset_index(drop=True)
+        logging.info("File excluded, length: " + str(len(temp)))
+        logging.info(filename + "\n")
         continue
 
     # Convert the starting and ending coordinates of the survey from degrees decimal minutes to decimal degrees
@@ -167,11 +188,13 @@ for filename in glob.glob('{}/*.txt'.format(res_folder)):
         startLong = float(str(temp.loc[0, "Longitude"])[0:3]) - float(str(temp.loc[0, "Longitude"])[3:]) / 60
         endLong = float(str(temp.loc[len(temp)-1, "Longitude"])[0:3]) - float(str(temp.loc[len(temp)-1, "Longitude"])[3:]) / 60
     except ValueError:
+        logging.critical("Could not convert latitude or longitude in " + filename + "\n")
         tkMessageBox.showerror("FORMATTING ERROR",
                                "Value Error: could not convert latitude or longitude in " + filename)
         exit()
     # Check to see if Longitude is formatted like we want it to
     if startLong > 0 or endLong > 0:
+        logging.error("Incorrect longitude format in " + filename + "\n")
         tkMessageBox.showerror("FORMATTING ERROR",
                                "Error: please format longitude with negative sign for file " + filename)
         exit()
@@ -179,6 +202,7 @@ for filename in glob.glob('{}/*.txt'.format(res_folder)):
                                         columns=["StartLat", "EndLat", "StartLong", "EndLong", "Filename"])).reset_index(drop=True)
 
 # Track files that were removed due to their length
+logging.info("Writing excluded surveys to file\n")
 excludeSurveys.to_csv(path + "\\EXCLUDED_SURVEYS.txt", index=False)
 
 # Reorganize files based upon their location to one another
@@ -229,9 +253,11 @@ riverName = "Floodway"  # ------------------------------------------------------
 reorderedSubset.drop(["StartLat", "EndLat", "StartLong", "EndLong", "Distance", "ReverseDistance"], axis=1, inplace=True)
 reorderedSubset["NewFilename"] = reorderedSubset.index + 1
 reorderedSubset["NewFilename"] = directory + "\\" + riverName + "_" + reorderedSubset["NewFilename"].apply(lambda k: str(k).zfill(3)) + ".txt"
+logging.info("Writing renamed resistivity directory to file\n")
 reorderedSubset.to_csv(path + "\\RENAMED_RESISTIVITY_FILE_DIRECTORY.txt", index=False)
 
 # Rename the actual files in the renamed directory
+logging.info("Copying renamed files to new directory\n")
 for i, fOld in enumerate(reorderedSubset["Filename"]):
     fNew = path + "\\" + reorderedSubset.loc[i, "NewFilename"].replace('/', '\\').split('\\')[-1]
     copyfile(fOld, fNew)
@@ -239,6 +265,7 @@ for i, fOld in enumerate(reorderedSubset["Filename"]):
 #%%
 # Preprocessing Resistivity Data
 print('Aggregating raw data files')
+logging.info("Aggregating raw data files\n")
 
 # Copy resistivity data into a single file
 colNames = ["Distance", "Depth", "Rho 1", "Rho 2", "Rho 3", "Rho 4", "Rho 5", "Rho 6", "Rho 7", "Rho 8", "Rho 9",
@@ -268,6 +295,7 @@ importfile.reset_index(drop=True, inplace=True)
 importfile.to_csv(outfilename, index=False)
 
 print('Processing resistivity data')
+logging.info("Processing resistivity data\n")
 data_cols = ('Ohm_m',
              'Cor_Dist',
              'Cor_Depth',
@@ -322,29 +350,35 @@ try:
     depthoffset = float(ini.ix['DepthOffset', '[SwitchPro]'])
     if depthoffset > 0:
         tkMessageBox.showwarning("WARNING", "Positive value for depth offset from INI file")
+        logging.warning("Positive value for depth offset from ini file\n")
 except:
     tkMessageBox.showerror("FILE ERROR", "No INI file selected or incorrect file format...")
+    logging.error("No INI file selected or incorrect file format\n")
     exit()
 
 #%%
 # Applying the bandpass filter and rolling average
+logging.info("Applying bandpass filter\n")
 for x in range(1,11):
     band_pass(importfile,'Rho {}'.format(x),0,250)
     rolling_avg(importfile, 'Rho {}'.format(x), 'Rho {}_bandpass'.format(x), 20)
 
 #%%
 # Applying the depth filter
+logging.info("Applying depth filter\n")
 depth_filt(importfile, 'Depth', depthoffset, 0.01)
 rolling_avg(importfile, 'Depth', 'Depth_filt'.format(x), 20)
 
 #%%
 # Filtering Altitude via rolling median filter
+logging.info("Filtering altitude via rolling median filter\n")
 importfile['Altitude_filt'] = pd.rolling_median(importfile['Altitude'],window=10)
 rolling_avg(importfile, 'Altitude', 'Altitude_filt', 20)
 importfile['Altitude_rollavg']=importfile['Altitude_rollavg'].round(1)
 
 #%%
 # Converting WGS 84 coordinates to UTM 15N coordiantes
+logging.info("Converting WGS84 coordinates\n")
 geometry = [Point(xy) for xy in zip(importfile.Lon, importfile.Lat)]
 crs=None
 importfile = gp.GeoDataFrame(importfile, crs=crs, geometry=geometry)
@@ -362,9 +396,11 @@ importfile['Y_UTM']=y
 #%%
 # Calculating the distance from UTM coordinates
 print("Calculating distance from UTM coordinates")
+logging.info("Calculating distance from UTM coordinates\n")
 importfile['Cum_dist']=0
 
 for i in range(1,len(importfile['Distance'])):
+    #print(i)
     importfile.ix[i,'Cor_Dist']=np.sqrt(np.square(importfile.ix[i,'X_UTM']-importfile.ix[i-1,'X_UTM'])+np.square(importfile.ix[i,'Y_UTM']-importfile.ix[i-1,'Y_UTM']))
     importfile.ix[i,'Cum_dist']=importfile.ix[i-1,'Cum_dist']+importfile.ix[i,'Cor_Dist']
 
@@ -378,7 +414,7 @@ importfile.fillna('*', inplace=True)
 importfile.drop('geometry', axis=1, inplace=True)
 
 #%%
-
+logging.info("Saving processed resistivity file\n")
 saveRes = asksaveasfilename(defaultextension='.csv',title="Designate resitivity csv name and location", filetypes=[('csv file', '*.csv')])
 importfile.to_csv(saveRes, index=False)
 print('Resistivity data exported')
@@ -399,6 +435,7 @@ qwfiles = [f for f in listdir(mypath) if isfile(join(mypath, f))]
 j=qwfiles[0]
 
 print('Importing water quality data')
+logging.info("Importing water quality data\n")
 data = pd.read_csv('{}/{}'.format(wq_folder,j),sep=',',skiprows=12,index_col=False,engine='python',encoding='utf-16',
                    names=["Date","Time","°C","mmHg","DO %","SPC-uS/cm","C-uS/cm","ohm-cm","pH","NH4-N mg/L",
                           "NO3-N mg/L","Cl mg/L","FNU","TSS mg/L","DEP m","ALT m","Lat","Lon"])
@@ -420,6 +457,7 @@ try:
 except:
     pass
 print('Processing water quality data')
+logging.info("Processing water quality data\n")
 qwdata.dropna(axis=1, how='all', inplace=True)
 
 qwdata.rename(columns={'°C':'Temp_C', 'SPC-uS/cm': 'SPC_mscm','C-uS/cm':'Cond_mscm','ohm-cm':'Res_ocm','ALT m':'Alt_m'}, inplace=True)
@@ -463,6 +501,7 @@ qwdata.drop('geometry',axis=1,inplace=True)
 qwdata.fillna('*', inplace=True)
 
 #%%
+logging.info("Export water quality data\n")
 saveQW = asksaveasfilename(defaultextension='.csv',title="Designate water quality csv name and location", filetypes=[('csv file', '*.csv')])
 qwdata.to_csv(saveQW, index=False)
 print('Water quality data exported!')
