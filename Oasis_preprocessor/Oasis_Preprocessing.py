@@ -182,8 +182,7 @@ for filename in glob.glob('{}/*.txt'.format(res_folder)):
 excludeSurveys.to_csv(path + "\\EXCLUDED_SURVEYS.txt", index=False)
 
 # Reorganize files based upon their location to one another
-reorderedSubset = pd.DataFrame(columns=["StartLat", "EndLat", "StartLong", "EndLong", "Filename", "Distance"])
-reorderedSubset["Reverse"] = False
+reorderedSubset = pd.DataFrame(columns=["StartLat", "EndLat", "StartLong", "EndLong", "Filename", "Distance", "Reverse"])
 # Pick starting survey as one where start is farthest away from finish
 subset["Distance"] = 0.00
 for i, f in enumerate(subset.Filename):
@@ -198,6 +197,7 @@ for i, f in enumerate(subset.Filename):
     subset.at[i, "Distance"] = dist
 # Start survey is one with greatest starting distance from any survey
 reorderedSubset = reorderedSubset.append(subset.loc[subset["Distance"].idxmax(), :]).reset_index(drop=True)
+reorderedSubset.loc[len(reorderedSubset) - 1, "Reverse"] = False  # First line shouldn't need reversal
 subset.drop([subset["Distance"].idxmax()], inplace=True)
 subset.reset_index(drop=True, inplace=True)
 
@@ -217,6 +217,7 @@ while len(subset) > 0:
     # Check to see if next survey section is reversed
     if min(subset["Distance"]) <= min(subset["ReverseDistance"]):
         reorderedSubset = reorderedSubset.append(subset.loc[subset["Distance"].idxmin(), :]).reset_index(drop=True)
+        reorderedSubset.loc[len(reorderedSubset) - 1, "Reverse"] = False
     else:
         reorderedSubset = reorderedSubset.append(subset.loc[subset["ReverseDistance"].idxmin(), :]).reset_index(drop=True)
         reorderedSubset.loc[len(reorderedSubset)-1, "Reverse"] = True
@@ -228,51 +229,43 @@ riverName = "Floodway"  # ------------------------------------------------------
 reorderedSubset.drop(["StartLat", "EndLat", "StartLong", "EndLong", "Distance", "ReverseDistance"], axis=1, inplace=True)
 reorderedSubset["NewFilename"] = reorderedSubset.index + 1
 reorderedSubset["NewFilename"] = directory + "\\" + riverName + "_" + reorderedSubset["NewFilename"].apply(lambda k: str(k).zfill(3)) + ".txt"
-reorderedSubset.to_csv(path + "\\RENAMED_RESISTIVITY_FILE_DIRECTORY.txt")
+reorderedSubset.to_csv(path + "\\RENAMED_RESISTIVITY_FILE_DIRECTORY.txt", index=False)
 
 # Rename the actual files in the renamed directory
-# Write new files to "path"
 for i, fOld in enumerate(reorderedSubset["Filename"]):
     fNew = path + "\\" + reorderedSubset.loc[i, "NewFilename"].replace('/', '\\').split('\\')[-1]
-    test = "akjdnma;lh"
-    copyfile(fOld, test)
+    copyfile(fOld, fNew)
     
 #%%
 # Preprocessing Resistivity Data
 print('Aggregating raw data files')
 
 # Copy resistivity data into a single file
-with open(outfilename, 'wb') as outfile:
-    for filename in glob.glob('{}/*.txt'.format(res_folder)):
-        if filename == outfilename:
-            continue
-        with open(filename, 'rb') as readfile:
-            shutil.copyfileobj(readfile, outfile)
+colNames = ["Distance", "Depth", "Rho 1", "Rho 2", "Rho 3", "Rho 4", "Rho 5", "Rho 6", "Rho 7", "Rho 8", "Rho 9",
+            "Rho 10", "C1", "C2", "P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10", "P11", "Latitude",
+            "Longitude", "In_p", "In_n", "V1_p", "V1_n", "V2_p", "V2_n", "V3_p", "V3_n", "V4_p", "V4_n", "V5_p", "V5_n",
+            "V6_p", "V6_n", "V7_p", "V7_n", "V8_p", "V8_n", "V9_p", "V9_n", "V10_p", "V10_n", "GPSString", "UTC",
+            "Latitude2", "D1", "Longitude2", "D2", "Fix Quality", "Satellites", "HDOP", "Altitude", "D3",
+            "Height of Geoid", "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "E9", "E10", "E11"]
+importfile = pd.DataFrame(columns=colNames)
+for i, filename in enumerate(reorderedSubset["Filename"]):
+    # If file flagged for reversal, reverse
+    if reorderedSubset.loc[i, "Reverse"]:
+        temp = pd.read_csv(filename, sep=';|,', engine='python').reset_index()
+        temp.columns = colNames
+        temp = temp.iloc[::-1]  # Reversal line
+        temp["Filename"] = reorderedSubset.loc[i, "NewFilename"]
+        importfile = importfile.append(temp)
+    # Otherwise, write file to master file normally
+    else:
+        temp = pd.read_csv(filename, sep=';|,', engine='python').reset_index()
+        temp.columns = colNames
+        temp["Filename"] = reorderedSubset.loc[i, "NewFilename"]
+        importfile = importfile.append(temp)
+importfile.reset_index(drop=True, inplace=True)
 
-# Reformat "all" delimiters to semicolons
-replacements = {',':';'}
-lines = []
-with open('{}/all.txt'.format(res_folder)) as infile:
-    for line in infile:
-        for src, target in replacements.iteritems():
-            line = line.replace(src, target)
-        lines.append(line)
-with open('{}/all.txt'.format(res_folder), 'w') as outfile:
-    for line in lines:
-        outfile.write(line)
-
-print('Importing resistivity data')
-importfile = pd.read_csv('{}/all.txt'.format(res_folder), sep=';', index_col=False, skiprows=1,
-                         names=["Distance", "Depth", "Rho 1", "Rho 2", "Rho 3", "Rho 4", "Rho 5", "Rho 6", "Rho 7",
-                                "Rho 8", "Rho 9", "Rho 10", "C1", "C2", "P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8",
-                                "P9", "P10", "P11", "Latitude", "Longitude", "In_p", "In_n", "V1_p", "V1_n", "V2_p",
-                                "V2_n", "V3_p", "V3_n", "V4_p", "V4_n", "V5_p", "V5_n", "V6_p", "V6_n", "V7_p", "V7_n",
-                                "V8_p", "V8_n", "V9_p", "V9_n", "V10_p", "V10_n", "GPSString", "UTC", "Latitude2", "D1",
-                                "Longitude2", "D2", "Fix Quality", "Satellites", "HDOP", "Altitude", "D3",
-                                "Height of Geoid"],
-                         usecols=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
-                                  24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44,
-                                  45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60])
+# Write combined file
+importfile.to_csv(outfilename, index=False)
 
 print('Processing resistivity data')
 data_cols = ('Ohm_m',
@@ -290,39 +283,16 @@ data_cols = ('Ohm_m',
              'Final_Rho_10',
              'Lat',
              'Lon',
-             'Final_Altitude',
-             'File')
+             'Final_Altitude')
 # Add additional data columns listed above and remove unwanted data columns
 for x in data_cols:
     importfile[x]=np.nan
-importfile.drop(['D1','D2','D3', 'File'], inplace=True, axis=1)
-importfile.insert(0,'File',float("NaN"))
+importfile.drop(['D1', 'D2', 'D3', "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "E9", "E10", "E11"],
+                inplace=True, axis=1)
 
-# Demarcate which file data came from and remove headers from combined data
-j = 1
-for x in range(0, len(importfile.Distance)):
-    if importfile.ix[x, "Distance"] == "0.00":
-        importfile.ix[x, "File"] = j
-        j += 1
-importfile["File"].fillna(method='ffill', inplace=True)
-
-# Removes bad data files
-importfile = importfile.loc[importfile.GPSString == 'GPGGA', :]
-
-"""
-# Propose dropping this section for simplification - can't see that it does anything
-importfile = importfile.loc[(importfile.GPSString=='GPGGA')|(importfile.Distance=='Distance'),:]
-
-
-importfile['Counter']=importfile.index.values+1
-counter = importfile['Counter']
-importfile.drop(['Counter'], axis=1, inplace=True)
-importfile.insert(0,'Counter',counter)
-
-importfile = importfile.loc[importfile.Distance.str.contains("Distance")==False,:]
-"""
 importfile.set_index([range(0,len(importfile.Distance))], inplace=True)
-
+importfile["Latitude"] = importfile["Latitude"].astype(str)
+importfile["Longitude"] = importfile["Longitude"].astype(str)
 # Reformat Latitude and Longitude to decimal degrees
 importfile['Lat1'] = importfile['Latitude'].str[0:2]
 importfile['Lat2'] = importfile['Latitude'].str[2:]
@@ -345,18 +315,6 @@ for col in importfile.columns[1:]:
         importfile[col] = importfile[col].astype(float)
     except:
         pass
-
-# Creates new column with new incremental file count
-importfile.ix[0, 'File1'] = "1"
-j = 2
-for x in range(1, len(importfile.Distance)):
-    if importfile.ix[x, "File"] != importfile.ix[x-1, "File"]:
-        importfile.ix[x, "File1"] = j
-        j += 1
-importfile["File1"].fillna(method='ffill', inplace=True)
-file1 = importfile['File1']
-importfile.drop(['File1', 'File'], axis=1, inplace=True)
-importfile.insert(0, 'File', file1)
 
 # Import INI file
 try:
@@ -403,6 +361,7 @@ importfile['Y_UTM']=y
 
 #%%
 # Calculating the distance from UTM coordinates
+print("Calculating distance from UTM coordinates")
 importfile['Cum_dist']=0
 
 for i in range(1,len(importfile['Distance'])):
