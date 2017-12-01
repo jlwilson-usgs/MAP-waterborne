@@ -109,28 +109,7 @@ if not ini_file:
 # Save File Location
 directory = askdirectory(title="Select directory to save the reordered resistivity and water-quality data")
 """
-"""
-# %% NHD geodatabase Location
-gdb_dir = askdirectory(title="Select directory where NHD geodatabase is located")
-try:
-    streams = gp.read_file(gdb_dir)
-except:
-    tkMessageBox.showerror("FILE ERROR", "No NHD geodatabase selected")
-    exit()
-stream_df=pd.DataFrame(streams)
-#%%
-str(stream_df.ix[3,'geometry'])
-#%%
-for x in range(0,len(stream_df.FCode)):
-    stream_df.ix[x,'geo']=str(stream_df.ix[x,'geometry'])
-#%%
 
-#Rename files from upstream to downstream with indicator of direction '_up' and '_down'
-
-#Ideas: tkinter prompt to select if files are upstream or downstream 
-#%%
-
-"""
 # Record logging events to log file
 logging.basicConfig(filename=directory+"\\OASIS_PREPROCESSING_LOGFILE.txt", format='%(asctime)s %(levelname)s %(message)s',
                     datefmt='%m/%d/%Y %I:%M:%S %p', filemode='w', level=logging.INFO)
@@ -335,7 +314,10 @@ importfile['Lon1'] = importfile['Lon1'].astype(float)
 importfile['Lon'] = importfile.Lon1-importfile.Lon2/60
 
 importfile.drop(['Lat1','Lat2','Lon1','Lon2'], axis=1, inplace=True)
-# importfile.drop('Counter', axis=1, inplace=True)  # Propose dropping this code
+# Remove erroneous GPS measurements
+importfile = importfile[importfile["Lat"] != 0]
+importfile = importfile[importfile["Lon"] != 0]
+importfile.reset_index(inplace=True, drop=True)
 
 # Reformat numbers in the file to float
 for col in importfile.columns[1:]: 
@@ -397,12 +379,9 @@ importfile['Y_UTM']=y
 # Calculating the distance from UTM coordinates
 print("Calculating distance from UTM coordinates")
 logging.info("Calculating distance from UTM coordinates\n")
-importfile['Cum_dist']=0
-
-for i in range(1,len(importfile['Distance'])):
-    #print(i)
-    importfile.ix[i,'Cor_Dist']=np.sqrt(np.square(importfile.ix[i,'X_UTM']-importfile.ix[i-1,'X_UTM'])+np.square(importfile.ix[i,'Y_UTM']-importfile.ix[i-1,'Y_UTM']))
-    importfile.ix[i,'Cum_dist']=importfile.ix[i-1,'Cum_dist']+importfile.ix[i,'Cor_Dist']
+importfile["Cor_Dist"] = np.sqrt(np.square(importfile['X_UTM'] - importfile['X_UTM'].shift()) +
+                                 np.square(importfile['Y_UTM'] - importfile['Y_UTM'].shift()))
+importfile["Cum_dist"] = importfile["Cor_Dist"].cumsum()
 
 # Here is where we might search for gaps in the data...
 
