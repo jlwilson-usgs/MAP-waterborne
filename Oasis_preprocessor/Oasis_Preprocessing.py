@@ -31,6 +31,7 @@ from shutil import copyfile
 import logging
 import sys
 import traceback
+import datetime
 
 #%%
 # Defining bandpass filter to filter resistivity data channels
@@ -396,7 +397,12 @@ importfile.drop('geometry', axis=1, inplace=True)
 #%%
 logging.info("Saving processed resistivity file\n")
 saveRes = asksaveasfilename(defaultextension='.csv',title="Designate resitivity csv name and location", filetypes=[('csv file', '*.csv')])
-importfile.to_csv(saveRes, index=False)
+try:
+    importfile.to_csv(saveRes, index=False)
+except IOError:
+    logging.critical("Error: could not save resistivity data to file.  Ensure file is not open.")
+    tkMessageBox.showerror("FILE ERROR", "Could not save resistivity data to file.  Ensure filename is not open.")
+    exit()
 print('Resistivity data exported')
 
 
@@ -405,19 +411,10 @@ print('Resistivity data exported')
 # %% -----------------------------------------------------------------------------------------------------------------
 # Preprocessing QW Data
 
-from os import listdir
-from os.path import isfile, join
-
-mypath=wq_folder
-
-qwfiles = [f for f in listdir(mypath) if isfile(join(mypath, f))]
-
-# %% -----------------------------------------------------------------------------------------------------------------
-
 # Grab starting and ending points of each survey to reorder
 # NOTE: THIS ASSUMES CONTINUITY WITHIN SURVEY - NO TURNING BOAT AROUND WITHIN SURVEY LINE
-subset = pd.DataFrame(columns=["StartLat", "EndLat", "StartLong", "EndLong", "Filename"])
-excludeSurveys = pd.DataFrame(columns=["Filename", "Number_of_Data_Points"])
+wqsubset = pd.DataFrame(columns=["StartLat", "EndLat", "StartLong", "EndLong", "Filename"])
+wqexcludeSurveys = pd.DataFrame(columns=["Filename", "Number_of_Data_Points"])
 for filename in glob.glob('{}/*.csv'.format(wq_folder)):
     temp = pd.read_csv(filename, sep=',', skiprows=12, index_col=False, engine='python', encoding='utf-16',
                        names=["Date", "Time", "°C", "mmHg", "DO %", "SPC-uS/cm", "C-uS/cm", "ohm-cm", "pH",
@@ -425,7 +422,7 @@ for filename in glob.glob('{}/*.csv'.format(wq_folder)):
 
     # Check if survey is bad (only one entry)
     if len(temp) < 2:
-        excludeSurveys = excludeSurveys.append(pd.DataFrame([[filename, str(len(temp))]],
+        wqexcludeSurveys = wqexcludeSurveys.append(pd.DataFrame([[filename, str(len(temp))]],
                                                             columns=["Filename",
                                                                      "Number_of_Data_Points"])).reset_index(drop=True)
         logging.info("Water quality file excluded, length: " + str(len(temp)))
@@ -449,66 +446,66 @@ for filename in glob.glob('{}/*.csv'.format(wq_folder)):
         tkMessageBox.showerror("FORMATTING ERROR",
                                "Error: please format longitude with negative sign for file " + filename)
         exit()
-    subset = subset.append(pd.DataFrame([[startLat, endLat, startLong, endLong, filename]],
-                                        columns=["StartLat", "EndLat", "StartLong", "EndLong", "Filename"])).reset_index(drop=True)
+    wqsubset = wqsubset.append(pd.DataFrame([[startLat, endLat, startLong, endLong, filename]],
+                                            columns=["StartLat", "EndLat", "StartLong", "EndLong", "Filename"])).reset_index(drop=True)
 
 # Track files that were removed due to their length
 logging.info("Writing excluded surveys to file\n")
-excludeSurveys.to_csv(path + "\\EXCLUDED_SURVEYS_WQ.txt", index=False)
+wqexcludeSurveys.to_csv(path + "\\EXCLUDED_SURVEYS_WQ.txt", index=False)
 
 # Reorganize files based upon their location to one another
-reorderedSubset = pd.DataFrame(columns=["StartLat", "EndLat", "StartLong", "EndLong", "Filename", "Distance", "Reverse"])
+wqreorderedSubset = pd.DataFrame(columns=["StartLat", "EndLat", "StartLong", "EndLong", "Filename", "Distance", "Reverse"])
 # Pick starting survey as one where start is closest to the resistivity start
-subset["Distance"] = 0.00
+wqsubset["Distance"] = 0.00
 startLat = importfile.loc[0, "Lat"]
 startLong = importfile.loc[0, "Lon"]
-for i, f in enumerate(subset.Filename):
-    endLat = subset.loc[i, "EndLat"]
-    endLong = subset.loc[i, "EndLong"]
+for i, f in enumerate(wqsubset.Filename):
+    endLat = wqsubset.loc[i, "EndLat"]
+    endLong = wqsubset.loc[i, "EndLong"]
     dist = haversine(startLong, startLat, endLong, endLat)
-    subset.at[i, "Distance"] = dist
+    wqsubset.at[i, "Distance"] = dist
 
 # Start survey is one with shortest starting distance from the first resistivity survey
-reorderedSubset = reorderedSubset.append(subset.loc[subset["Distance"].idxmin(), :]).reset_index(drop=True)
-reorderedSubset["Reverse"] = False  # First line shouldn't need reversal
-subset.drop([subset["Distance"].idxmin()], inplace=True)
-subset.reset_index(drop=True, inplace=True)
+wqreorderedSubset = wqreorderedSubset.append(wqsubset.loc[wqsubset["Distance"].idxmin(), :]).reset_index(drop=True)
+wqreorderedSubset["Reverse"] = False  # First line shouldn't need reversal
+wqsubset.drop([wqsubset["Distance"].idxmin()], inplace=True)
+wqsubset.reset_index(drop=True, inplace=True)
 
 # Reorder remaining surveys based on distance from the end of previous survey
-while len(subset) > 0:
-    endLat = reorderedSubset.loc[len(reorderedSubset)-1, "EndLat"]
-    endLong = reorderedSubset.loc[len(reorderedSubset)-1, "EndLong"]
-    subset["Distance"] = 999999999.00
-    subset["ReverseDistance"] = 999999999.00
+while len(wqsubset) > 0:
+    endLat = wqreorderedSubset.loc[len(wqreorderedSubset)-1, "EndLat"]
+    endLong = wqreorderedSubset.loc[len(wqreorderedSubset)-1, "EndLong"]
+    wqsubset["Distance"] = 999999999.00
+    wqsubset["ReverseDistance"] = 999999999.00
     # The next line "starts" closest to the "end" of the previous line
-    for i2, f2 in enumerate(subset.Filename):
-        startLat = subset.loc[i2, "StartLat"]
-        startLong = subset.loc[i2, "StartLong"]
-        subset.at[i2, "Distance"] = haversine(startLong, startLat, endLong, endLat)
-        subset.at[i2, "ReverseDistance"] = haversine(subset.loc[i2, "EndLong"], subset.loc[i2, "EndLat"], endLong, endLat)
+    for i2, f2 in enumerate(wqsubset.Filename):
+        startLat = wqsubset.loc[i2, "StartLat"]
+        startLong = wqsubset.loc[i2, "StartLong"]
+        wqsubset.at[i2, "Distance"] = haversine(startLong, startLat, endLong, endLat)
+        wqsubset.at[i2, "ReverseDistance"] = haversine(wqsubset.loc[i2, "EndLong"], wqsubset.loc[i2, "EndLat"], endLong, endLat)
     # Check to see if next survey section is reversed
-    if min(subset["Distance"]) <= min(subset["ReverseDistance"]):
-        reorderedSubset = reorderedSubset.append(subset.loc[subset["Distance"].idxmin(), :]).reset_index(drop=True)
-        reorderedSubset.loc[len(reorderedSubset) - 1, "Reverse"] = False
+    if min(wqsubset["Distance"]) <= min(wqsubset["ReverseDistance"]):
+        wqreorderedSubset = wqreorderedSubset.append(wqsubset.loc[wqsubset["Distance"].idxmin(), :]).reset_index(drop=True)
+        wqreorderedSubset.loc[len(wqreorderedSubset) - 1, "Reverse"] = False
     else:
-        reorderedSubset = reorderedSubset.append(subset.loc[subset["ReverseDistance"].idxmin(), :]).reset_index(drop=True)
-        reorderedSubset.loc[len(reorderedSubset)-1, "Reverse"] = True
-    subset.drop([subset["Distance"].idxmin()], inplace=True)
-    subset.reset_index(drop=True, inplace=True)
-reorderedSubset.loc[0, "Reverse"] = False  # First line shouldn't need reversal (need to restate)
+        wqreorderedSubset = wqreorderedSubset.append(wqsubset.loc[wqsubset["ReverseDistance"].idxmin(), :]).reset_index(drop=True)
+        wqreorderedSubset.loc[len(wqreorderedSubset)-1, "Reverse"] = True
+    wqsubset.drop([wqsubset["Distance"].idxmin()], inplace=True)
+    wqsubset.reset_index(drop=True, inplace=True)
+wqreorderedSubset.loc[0, "Reverse"] = False  # First line shouldn't need reversal (need to restate)
 
 # Create new filenames for surveys based on their order and export directory to csv file
 riverName = "Floodway"  # ------------------------------------------------------------> HARDCODED, NEED TO UPDATE
-reorderedSubset.drop(["StartLat", "EndLat", "StartLong", "EndLong", "Distance", "ReverseDistance"], axis=1, inplace=True)
-reorderedSubset["NewFilename"] = reorderedSubset.index + 1
-reorderedSubset["NewFilename"] = directory + "\\" + riverName + "_" + reorderedSubset["NewFilename"].apply(lambda k: str(k).zfill(3)) + "_WQ.csv"
+wqreorderedSubset.drop(["StartLat", "EndLat", "StartLong", "EndLong", "Distance", "ReverseDistance"], axis=1, inplace=True)
+wqreorderedSubset["NewFilename"] = wqreorderedSubset.index + 1
+wqreorderedSubset["NewFilename"] = directory + "\\" + riverName + "_" + wqreorderedSubset["NewFilename"].apply(lambda k: str(k).zfill(3)) + "_WQ.csv"
 logging.info("Writing renamed water quality directory to file\n")
-reorderedSubset.to_csv(path + "\\RENAMED_WQ_FILE_DIRECTORY.txt", index=False)
+wqreorderedSubset.to_csv(path + "\\RENAMED_WQ_FILE_DIRECTORY.txt", index=False)
 
 # Rename the actual files in the renamed directory
 logging.info("Copying renamed files to new directory\n")
-for i, fOld in enumerate(reorderedSubset["Filename"]):
-    fNew = path + "\\" + reorderedSubset.loc[i, "NewFilename"].replace('/', '\\').split('\\')[-1]
+for i, fOld in enumerate(wqreorderedSubset["Filename"]):
+    fNew = path + "\\" + wqreorderedSubset.loc[i, "NewFilename"].replace('/', '\\').split('\\')[-1]
     copyfile(fOld, fNew)
 
 # %% -----------------------------------------------------------------------------------------------------------------
@@ -517,19 +514,19 @@ print('Importing water quality data')
 wqCols = ["Date", "Time", "°C", "mmHg", "DO %", "SPC-uS/cm", "C-uS/cm", "ohm-cm", "pH", "NH4-N mg/L", "NO3-N mg/L",
           "Cl mg/L", "FNU", "TSS mg/L", "DEP m", "ALT m", "Lat", "Lon"]
 qwdata = pd.DataFrame(columns=wqCols)
-for i, filename in enumerate(reorderedSubset["Filename"]):
+for i, filename in enumerate(wqreorderedSubset["Filename"]):
     # If file flagged for reversal, reverse
-    if reorderedSubset.loc[i, "Reverse"]:
+    if wqreorderedSubset.loc[i, "Reverse"]:
         temp = pd.read_csv(filename, sep=',', skiprows=12, index_col=False, engine='python', encoding='utf-16',
                            names=wqCols)
         temp = temp.iloc[::-1]  # Reversal line
-        temp["Filename"] = reorderedSubset.loc[i, "NewFilename"]
+        temp["Filename"] = wqreorderedSubset.loc[i, "NewFilename"]
         qwdata = qwdata.append(temp)
     # Otherwise, write file to master file normally
     else:
         temp = pd.read_csv(filename, sep=',', skiprows=12, index_col=False, engine='python', encoding='utf-16',
                            names=wqCols)
-        temp["Filename"] = reorderedSubset.loc[i, "NewFilename"]
+        temp["Filename"] = wqreorderedSubset.loc[i, "NewFilename"]
         qwdata = qwdata.append(temp)
 qwdata.reset_index(drop=True, inplace=True)
 print('Water quality data imported')
@@ -586,5 +583,31 @@ qwdata.fillna('*', inplace=True)
 #%%
 logging.info("Export water quality data\n")
 saveQW = asksaveasfilename(defaultextension='.csv',title="Designate water quality csv name and location", filetypes=[('csv file', '*.csv')])
-qwdata.to_csv(saveQW, index=False)
+try:
+    qwdata.to_csv(saveQW, index=False)
+except IOError:
+    logging.critical("Error: could not save water quality data to file.  Ensure file is not open.")
+    tkMessageBox.showerror("FILE ERROR", "Could not save water quality data to file.  Ensure filename is not open.")
+    exit()
 print('Water quality data exported!')
+
+# %% -----------------------------------------------------------------------------------------------------------------
+# Write summary file
+try:
+    summaryFile = open(directory + "\\OASIS_PREPROCESSING_SUMMARY.txt", "w+")
+except IOError:
+    logging.critical("Error: could not write summary file")
+    exit()
+summaryFile.write("Processed on {:%Y-%m-%d %H:%M:%S}\n\n".format(datetime.datetime.now()))
+totalDistance = importfile.loc[len(importfile)-1, "Cum_dist"]/1000
+summaryFile.write("Total distance processed: %.2f" % totalDistance + " kilometers\n")
+summaryFile.write("Number of resistivity files read: " + str(len(reorderedSubset)) + "\n")
+for f in reorderedSubset.NewFilename:
+    summaryFile.write(f)
+    summaryFile.write('\n')
+summaryFile.write("\n\nNumber of water quality files read: " + str(len(wqreorderedSubset)) + "\n")
+for f in wqreorderedSubset.NewFilename:
+    summaryFile.write(f)
+    summaryFile.write('\n')
+summaryFile.write("\n\n")
+summaryFile.close()
