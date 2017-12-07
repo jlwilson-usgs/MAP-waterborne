@@ -20,6 +20,7 @@ from tkFileDialog import asksaveasfilename
 from tkFileDialog import askdirectory
 from tkFileDialog import askopenfilename
 import tkMessageBox
+import tkSimpleDialog
 import os
 from shapely.geometry import Point
 import geopandas as gp
@@ -78,13 +79,9 @@ sys.excepthook = catchEmAll
 Tk().withdraw()
 tkMessageBox.showinfo("Directions", "For this script to work, you must have all resistivity .txt files that you want to combine in one folder. All QW .csv files must also be in one folder. It may be the same folder.")
 
-# Hard-coded for now, tired of selecting.  Will remove when finalized
-res_folder = "D:\\Mississippi Alluvial Plain\\2018\\Waterborne Resistivity Scripts\\TestFiles\\FromWilson\\Pre_Oasis\\Resistivity"
-wq_folder = "D:\\Mississippi Alluvial Plain\\2018\\Waterborne Resistivity Scripts\\TestFiles\\FromWilson\\Pre_Oasis\\QW"
-ini_file = "D:\\Mississippi Alluvial Plain\\2018\\Waterborne Resistivity Scripts\\TestFiles\\FromWilson\\Pre_Oasis\\Resistivity\\Floodway_Inflatable_10m_extension_06142017.ini"
-directory = "D:\\Mississippi Alluvial Plain\\2018\\Waterborne Resistivity Scripts\\TestFiles\\FromWilson\\Pre_Oasis\\TestOutput"
+userRiverName = tkSimpleDialog.askstring("River Reach", "Please enter the name of the river reach...",
+                                         initialvalue="RIVER001")
 
-"""
 # Resistivity files
 res_folder = askdirectory(title="Select folder that contains all raw resistivity files for processing...")  # show an "Open" dialog box and return the path to the selected file
 if not glob.glob('{}/*.txt'.format(res_folder)):
@@ -109,16 +106,12 @@ if not ini_file:
 
 # Save File Location
 directory = askdirectory(title="Select directory to save the reordered resistivity and water-quality data")
-"""
 
 # Record logging events to log file
 logging.basicConfig(filename=directory+"\\OASIS_PREPROCESSING_LOGFILE.txt", format='%(asctime)s %(levelname)s %(message)s',
                     datefmt='%m/%d/%Y %I:%M:%S %p', filemode='w', level=logging.INFO)
 
 # %% -----------------------------------------------------------------------------------------------------------------
-
-# Create crosstab table and export as a .txt file showing old and new names
-
 #%%
 path = directory + r'/Raw_Data_Renamed'
 
@@ -229,10 +222,9 @@ while len(subset) > 0:
 reorderedSubset.loc[0, "Reverse"] = False  # First line shouldn't need reversal (need to restate)
 
 # Create new filenames for surveys based on their order and export directory to csv file
-riverName = "Floodway"  # ------------------------------------------------------------> HARDCODED, NEED TO UPDATE
 reorderedSubset.drop(["StartLat", "EndLat", "StartLong", "EndLong", "Distance", "ReverseDistance"], axis=1, inplace=True)
 reorderedSubset["NewFilename"] = reorderedSubset.index + 1
-reorderedSubset["NewFilename"] = directory + "\\" + riverName + "_" + reorderedSubset["NewFilename"].apply(lambda k: str(k).zfill(3)) + ".txt"
+reorderedSubset["NewFilename"] = directory + "\\" + userRiverName + "_" + reorderedSubset["NewFilename"].apply(lambda k: str(k).zfill(3)) + ".txt"
 logging.info("Writing renamed resistivity directory to file\n")
 reorderedSubset.to_csv(path + "\\RENAMED_RESISTIVITY_FILE_DIRECTORY.txt", index=False)
 
@@ -262,13 +254,30 @@ for i, filename in enumerate(reorderedSubset["Filename"]):
         temp.columns = colNames
         temp = temp.iloc[::-1]  # Reversal line
         temp["Filename"] = reorderedSubset.loc[i, "NewFilename"]
-        importfile = importfile.append(temp)
     # Otherwise, write file to master file normally
     else:
         temp = pd.read_csv(filename, sep=';|,', engine='python').reset_index()
         temp.columns = colNames
         temp["Filename"] = reorderedSubset.loc[i, "NewFilename"]
-        importfile = importfile.append(temp)
+    # Attempt to remove overlapping lines
+    # Creates a box with the corners being the end of the previous line and start of next line
+    # Removes any of the next line within that box
+    try:
+        # Grab the end coordinates of the previous line
+        pL_lat = importfile["Latitude"].iloc[-1]
+        pL_lon = importfile["Longitude"].iloc[-1]
+        # ... And the start coordinates of the current line
+        cL_lat = temp.loc[0, "Latitude"]
+        cL_lon = temp.loc[0, "Longitude"]
+        prevLen = len(temp)
+        temp = temp[(temp["Latitude"] > max(pL_lat, cL_lat)) | (temp["Latitude"] < min(pL_lat, cL_lat)) |
+                    (temp["Longitude"] > max(pL_lon, cL_lon)) | (temp["Longitude"] < min(pL_lon, cL_lon))]
+        if prevLen != len(temp):
+            logging.info(str(prevLen-len(temp)) + " overlapping point(s) removed from file " + filename)
+    except IndexError:
+        # Catches the case where we are looking at the first line - simply skip the removal process
+        pass
+    importfile = importfile.append(temp)
 importfile.reset_index(drop=True, inplace=True)
 
 # Write combined file
@@ -385,10 +394,6 @@ importfile["Cor_Dist"] = np.sqrt(np.square(importfile['X_UTM'] - importfile['X_U
                                  np.square(importfile['Y_UTM'] - importfile['Y_UTM'].shift()))
 importfile["Cum_dist"] = importfile["Cor_Dist"].cumsum()
 
-# Here is where we might search for gaps in the data...
-
-#%%
-
 # %% -----------------------------------------------------------------------------------------------------------------
 #Replacing all NaNs with "*" and dropping geometry column
 importfile.fillna('*', inplace=True)
@@ -404,9 +409,6 @@ except IOError:
     tkMessageBox.showerror("FILE ERROR", "Could not save resistivity data to file.  Ensure filename is not open.")
     exit()
 print('Resistivity data exported')
-
-
-
 
 # %% -----------------------------------------------------------------------------------------------------------------
 # Preprocessing QW Data
@@ -495,10 +497,9 @@ while len(wqsubset) > 0:
 wqreorderedSubset.loc[0, "Reverse"] = False  # First line shouldn't need reversal (need to restate)
 
 # Create new filenames for surveys based on their order and export directory to csv file
-riverName = "Floodway"  # ------------------------------------------------------------> HARDCODED, NEED TO UPDATE
 wqreorderedSubset.drop(["StartLat", "EndLat", "StartLong", "EndLong", "Distance", "ReverseDistance"], axis=1, inplace=True)
 wqreorderedSubset["NewFilename"] = wqreorderedSubset.index + 1
-wqreorderedSubset["NewFilename"] = directory + "\\" + riverName + "_" + wqreorderedSubset["NewFilename"].apply(lambda k: str(k).zfill(3)) + "_WQ.csv"
+wqreorderedSubset["NewFilename"] = directory + "\\" + userRiverName + "_" + wqreorderedSubset["NewFilename"].apply(lambda k: str(k).zfill(3)) + "_WQ.csv"
 logging.info("Writing renamed water quality directory to file\n")
 wqreorderedSubset.to_csv(path + "\\RENAMED_WQ_FILE_DIRECTORY.txt", index=False)
 
@@ -521,13 +522,30 @@ for i, filename in enumerate(wqreorderedSubset["Filename"]):
                            names=wqCols)
         temp = temp.iloc[::-1]  # Reversal line
         temp["Filename"] = wqreorderedSubset.loc[i, "NewFilename"]
-        qwdata = qwdata.append(temp)
     # Otherwise, write file to master file normally
     else:
         temp = pd.read_csv(filename, sep=',', skiprows=12, index_col=False, engine='python', encoding='utf-16',
                            names=wqCols)
         temp["Filename"] = wqreorderedSubset.loc[i, "NewFilename"]
-        qwdata = qwdata.append(temp)
+    # Attempt to remove overlapping lines
+    # Creates a box with the corners being the end of the previous line and start of next line
+    # Removes any of the next line within that box
+    try:
+        # Grab the end coordinates of the previous line
+        pL_lat = qwdata["Lat"].iloc[-1]
+        pL_lon = qwdata["Lon"].iloc[-1]
+        # ... And the start coordinates of the current line
+        cL_lat = temp.loc[0, "Lat"]
+        cL_lon = temp.loc[0, "Lon"]
+        prevLen = len(temp)
+        temp = temp[(temp["Lat"] > max(pL_lat, cL_lat)) | (temp["Lat"] < min(pL_lat, cL_lat)) |
+                    (temp["Lon"] > max(pL_lon, cL_lon)) | (temp["Lon"] < min(pL_lon, cL_lon))]
+        if prevLen != len(temp):
+            logging.info(str(prevLen-len(temp)) + " overlapping point(s) removed from file " + filename)
+    except IndexError:
+        # Catches the case where we are looking at the first line - simply skip the removal process
+        pass
+    qwdata = qwdata.append(temp)
 qwdata.reset_index(drop=True, inplace=True)
 print('Water quality data imported')
 
