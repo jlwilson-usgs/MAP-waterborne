@@ -80,7 +80,7 @@ Tk().withdraw()
 tkMessageBox.showinfo("Directions", "For this script to work, you must have all resistivity .txt files that you want to combine in one folder. All QW .csv files must also be in one folder. It may be the same folder.")
 
 userRiverName = tkSimpleDialog.askstring("River Reach", "Please enter the name of the river reach...",
-                                         initialvalue="RIVER001")
+                                         initialvalue="RIVER")
 
 # Resistivity files
 res_folder = askdirectory(title="Select folder that contains all raw resistivity files for processing...")  # show an "Open" dialog box and return the path to the selected file
@@ -112,7 +112,6 @@ logging.basicConfig(filename=directory+"\\OASIS_PREPROCESSING_LOGFILE.txt", form
                     datefmt='%m/%d/%Y %I:%M:%S %p', filemode='w', level=logging.INFO)
 
 # %% -----------------------------------------------------------------------------------------------------------------
-#%%
 path = directory + r'/Raw_Data_Renamed'
 
 try:
@@ -337,6 +336,20 @@ for col in importfile.columns[1:]:
         pass
 
 # %% -----------------------------------------------------------------------------------------------------------------
+# Adding File column to process data in Oasis in chunks
+importfile['File']="1"
+j=1
+for x in range(1,len(importfile.Filename)):
+    if importfile.ix[x,"Filename"]==importfile.ix[x-1,"Filename"]:
+        importfile.ix[x,"File"]=importfile.ix[x-1,"File"]
+        
+    elif importfile.ix[x,"Filename"]!=importfile.ix[x-1,"Filename"]:
+        j+=1
+        importfile.ix[x,"File"]=j
+    else:
+        break
+
+# %% -----------------------------------------------------------------------------------------------------------------
 # Import INI file
 try:
     ini = pd.read_csv(ini_file, index_col=None, sep='=')
@@ -453,7 +466,7 @@ for filename in glob.glob('{}/*.csv'.format(wq_folder)):
 
 # Track files that were removed due to their length
 logging.info("Writing excluded surveys to file\n")
-wqexcludeSurveys.to_csv(path + "\\EXCLUDED_SURVEYS_WQ.txt", index=False)
+wqexcludeSurveys.to_csv(path + r"\\EXCLUDED_SURVEYS_WQ.txt", index=False)
 
 # Reorganize files based upon their location to one another
 wqreorderedSubset = pd.DataFrame(columns=["StartLat", "EndLat", "StartLong", "EndLong", "Filename", "Distance", "Reverse"])
@@ -501,7 +514,7 @@ wqreorderedSubset.drop(["StartLat", "EndLat", "StartLong", "EndLong", "Distance"
 wqreorderedSubset["NewFilename"] = wqreorderedSubset.index + 1
 wqreorderedSubset["NewFilename"] = directory + "\\" + userRiverName + "_" + wqreorderedSubset["NewFilename"].apply(lambda k: str(k).zfill(3)) + "_WQ.csv"
 logging.info("Writing renamed water quality directory to file\n")
-wqreorderedSubset.to_csv(path + "\\RENAMED_WQ_FILE_DIRECTORY.txt", index=False)
+wqreorderedSubset.to_csv(path + r"\\RENAMED_WQ_FILE_DIRECTORY.txt", index=False)
 
 # Rename the actual files in the renamed directory
 logging.info("Copying renamed files to new directory\n")
