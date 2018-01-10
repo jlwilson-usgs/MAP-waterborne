@@ -2,13 +2,19 @@
 # coding: utf-8
 
 # """
-# Last Revised 11/20/2017
+# Last Revised 1/10/2018
+#
 # Jordan Wilson
 # USGS
 # Missouri Water Science Center
 # jlwilson@usgs.gov
+#
+# David Wallace
+# USGS
+# Texas Water Science Center
+# dswallace@usgs.gov
 # 
-# Combines multiple resistivity and water-quality profiles in the form of semicolon and comma delimited .txt files into .csv files for import into Oasis. 
+# Combines multiple resistivity and water-quality profiles in the form of semicolon and comma delimited .txt files and exports .csv files for import into Oasis and .shp for GIS. 
 # 
 # Tkinter code was modified from DSWallace integrateGeophysicsQW.py script. 
 # """
@@ -25,14 +31,20 @@ import os
 from shapely.geometry import Point
 import geopandas as gp
 import numpy as np
-import shutil, glob
-import fiona
+import glob
+#import fiona
 from math import radians, cos, sin, asin, sqrt
 from shutil import copyfile
 import logging
 import sys
 import traceback
 import datetime
+import warnings
+
+#%%
+# Supressing depreciation warning from output
+with warnings.catch_warnings():
+    warnings.filterwarnings("ignore",category=DeprecationWarning)
 
 #%%
 # Defining bandpass filter to filter resistivity data channels
@@ -97,8 +109,7 @@ if not glob.glob('{}/*.csv'.format(wq_folder)):
     exit()
 
 # Initialization File
-ini_file = askopenfilename(title="Select ini file used to collect the resistivity data",
-                           filetypes=[("INI Files", "*.ini")])
+ini_file = askopenfilename(title="Select ini file used to collect the resistivity data",filetypes=[("INI Files", "*.ini")])
 if not ini_file:
     tkMessageBox.showerror("FILE ERROR", "No INI file selected")
     logging.error("No INI file selected by the user\n")
@@ -376,11 +387,20 @@ depth_filt(importfile, 'Depth', depthoffset, 0.01)
 rolling_avg(importfile, 'Depth', 'Depth_filt'.format(x), 20)
 
 #%%
+# Removing large jumps in altitude (commonly caused by bridges)
+logging.info("Filtering altitude via percentage change\n")
+importfile['Alt_pct']=importfile['Altitude'].pct_change()
+importfile['Altitude_bandpass']=importfile['Altitude']
+importfile['Altitude_bandpass'][importfile['Alt_pct']<np.nanpercentile(importfile['Alt_pct'],5)] = np.nan
+importfile['Altitude_bandpass'][importfile['Alt_pct']>np.nanpercentile(importfile['Alt_pct'],95)] = np.nan
+importfile['Altitude_bandpass']=importfile['Altitude_bandpass'].interpolate()
+
+
+#%%
 # Filtering Altitude via rolling median filter
 logging.info("Filtering altitude via rolling median filter\n")
-importfile['Altitude_filt'] = pd.rolling_median(importfile['Altitude'],window=10)
-rolling_avg(importfile, 'Altitude', 'Altitude_filt', 20)
-importfile['Altitude_rollavg']=importfile['Altitude_rollavg'].round(1)
+rolling_avg(importfile, 'Altitude', 'Altitude_bandpass', 20)
+
 
 #%%
 # Converting WGS 84 coordinates to UTM 15N coordiantes
@@ -410,13 +430,13 @@ importfile["Cum_dist"] = importfile["Cor_Dist"].cumsum()
 # %% -----------------------------------------------------------------------------------------------------------------
 #Replacing all NaNs with "*" and dropping geometry column
 importfile.fillna('*', inplace=True)
-importfile.drop('geometry', axis=1, inplace=True)
+importfile1 = importfile.drop('geometry', axis=1)
 
 #%%
 logging.info("Saving processed resistivity file\n")
 saveRes = asksaveasfilename(defaultextension='.csv',title="Designate resitivity csv name and location", filetypes=[('csv file', '*.csv')])
 try:
-    importfile.to_csv(saveRes, index=False)
+    importfile1.to_csv(saveRes, index=False)
 except IOError:
     logging.critical("Error: could not save resistivity data to file.  Ensure file is not open.")
     tkMessageBox.showerror("FILE ERROR", "Could not save resistivity data to file.  Ensure filename is not open.")
@@ -472,8 +492,8 @@ wqexcludeSurveys.to_csv(path + r"\\EXCLUDED_SURVEYS_WQ.txt", index=False)
 wqreorderedSubset = pd.DataFrame(columns=["StartLat", "EndLat", "StartLong", "EndLong", "Filename", "Distance", "Reverse"])
 # Pick starting survey as one where start is closest to the resistivity start
 wqsubset["Distance"] = 0.00
-startLat = importfile.loc[0, "Lat"]
-startLong = importfile.loc[0, "Lon"]
+startLat = importfile1.loc[0, "Lat"]
+startLong = importfile1.loc[0, "Lon"]
 for i, f in enumerate(wqsubset.Filename):
     endLat = wqsubset.loc[i, "EndLat"]
     endLong = wqsubset.loc[i, "EndLong"]
@@ -560,11 +580,11 @@ for i, filename in enumerate(wqreorderedSubset["Filename"]):
         pass
     qwdata = qwdata.append(temp)
 qwdata.reset_index(drop=True, inplace=True)
-print('Water quality data imported')
+print('Water-quality data imported')
 
 # %% -----------------------------------------------------------------------------------------------------------------
-print('Processing water quality data')
-logging.info("Processing water quality data\n")
+print('Processing water-quality data')
+logging.info("Processing water-quality data\n")
 # Remove erroneous GPS measurements
 qwdata = qwdata[qwdata["Lat"] != 0.00]
 qwdata = qwdata[qwdata["Lon"] != 0.00]
@@ -607,20 +627,100 @@ qwdata['X_UTM']=x
 qwdata['Y_UTM']=y
 
 # %% -----------------------------------------------------------------------------------------------------------------
-# Filling all NaNs with '*'
+# Adding File column to process data in Oasis in chunks
+qwdata['File']="1"
+j=1
+for x in range(1,len(qwdata.Filename)):
+    if qwdata.ix[x,"Filename"]==qwdata.ix[x-1,"Filename"]:
+        qwdata.ix[x,"File"]=qwdata.ix[x-1,"File"]
+        
+    elif qwdata.ix[x,"Filename"]!=qwdata.ix[x-1,"Filename"]:
+        j+=1
+        qwdata.ix[x,"File"]=j
+    else:
+        break
+        
+#%%
+#Exporting resistivity data as a shapefile
+logging.info("Saving processed water-quality shapefile\n")
+saveWQshp = asksaveasfilename(defaultextension='.shp',title="Designate water-quality shapefile name and location", filetypes=[('shp file', '*.shp')])
+try:
+    qwdata.to_file(saveWQshp,driver='ESRI Shapefile')
+except IOError:
+    logging.critical("Error: could not save processed water-quality data to shapefile.  Ensure file is not open.")
+    tkMessageBox.showerror("FILE ERROR", "Could not save processed water-quality data to shapefile.  Ensure filename is not open.")
+    exit()
+print('Processed water-quality shapefile exported')
+
+#%%
+# Creating buffers and spatially joining QW with resitivity data
+Ohm_buffer = qwdata.buffer(5)
+qwdata1 = qwdata[['X_UTM','Y_UTM','Ohm_m_rollavg','Temp_C','Date','Time','geometry']]
+qwdata1['geometry'] = Ohm_buffer
+qwdata1 = qwdata1.set_geometry('geometry')
+resOhm = gp.sjoin(importfile,qwdata1,how='left', op='intersects')
+resOhm[['Ohm_m_rollavg','Temp_C']] = resOhm[['Ohm_m_rollavg','Temp_C']].interpolate(limit=20)
+resOhm['Temp_C'] = resOhm['Temp_C'].round(1)
+
+#%%
+# Populating the final fields
+resOhm['Ohm_m'] = resOhm['Ohm_m_rollavg']
+resOhm['Final_Altitude'] = resOhm['Altitude_rollavg']
+resOhm['Cor_depth'] = resOhm['Depth_filt']
+resOhm['Final_Rho_1'] = resOhm['Rho 1_rollavg']
+resOhm['Final_Rho_2'] = resOhm['Rho 2_rollavg']
+resOhm['Final_Rho_3'] = resOhm['Rho 3_rollavg']
+resOhm['Final_Rho_4'] = resOhm['Rho 4_rollavg']
+resOhm['Final_Rho_5'] = resOhm['Rho 5_rollavg']
+resOhm['Final_Rho_6'] = resOhm['Rho 6_rollavg']
+resOhm['Final_Rho_7'] = resOhm['Rho 7_rollavg']
+resOhm['Final_Rho_8'] = resOhm['Rho 8_rollavg']
+resOhm['Final_Rho_9'] = resOhm['Rho 9_rollavg']
+resOhm['Final_Rho_10'] = resOhm['Rho 10_rollavg']
+
+#%%
+# Converting *s to NaNs for import into GIS as a float
+resOhm.replace('*',np.nan, inplace=True)
+
+#%%
+logging.info("Saving preliminary merged QW/resistivity shapefile\n")
+savepreres = asksaveasfilename(defaultextension='.shp',title="Designate preliminary merged QW/resitivity shapefile name and location", filetypes=[('shp file', '*.shp')])
+try:
+    resOhm.to_file(savepreres,driver='ESRI Shapefile')
+except IOError:
+    logging.critical("Error: could not save preliminary merged QW/resistivity data to shapefile.  Ensure file is not open.")
+    tkMessageBox.showerror("FILE ERROR", "Could not save preliminary merged QW/resistivity data to shapefile.  Ensure filename is not open.")
+    exit()
+print('Preliminary merged QW/resistivity shapefile exported')
+
+#%%
+resOhm_df = resOhm.drop('geometry',axis=1)
+
+#%%
+logging.info("Export preliminary merged QW/resisitivty data\n")
+resOhm_csv = asksaveasfilename(defaultextension='.csv',title="Designate preliminary merged QW/resisitivty csv name and location", filetypes=[('csv file', '*.csv')])
+try:
+    resOhm_df.to_csv(resOhm_csv, index=False)
+except IOError:
+    logging.critical("Error: could not save preliminary merged QW/resisitivty data to file.  Ensure file is not open.")
+    tkMessageBox.showerror("FILE ERROR", "Could not save preliminary merged QW/resisitivty data to file.  Ensure filename is not open.")
+    exit()
+print('Preliminary merged QW/resistivity csv exported!')
+
+# %% -----------------------------------------------------------------------------------------------------------------
+# Removing geometry to dataframe
 qwdata.drop('geometry',axis=1,inplace=True)
-qwdata.fillna('*', inplace=True)
 
 #%%
 logging.info("Export water quality data\n")
-saveQW = asksaveasfilename(defaultextension='.csv',title="Designate water quality csv name and location", filetypes=[('csv file', '*.csv')])
+saveQW = asksaveasfilename(defaultextension='.csv',title="Designate water-quality csv name and location", filetypes=[('csv file', '*.csv')])
 try:
     qwdata.to_csv(saveQW, index=False)
 except IOError:
-    logging.critical("Error: could not save water quality data to file.  Ensure file is not open.")
-    tkMessageBox.showerror("FILE ERROR", "Could not save water quality data to file.  Ensure filename is not open.")
+    logging.critical("Error: could not save water-quality data to file.  Ensure file is not open.")
+    tkMessageBox.showerror("FILE ERROR", "Could not save water-quality data to file.  Ensure filename is not open.")
     exit()
-print('Water quality data exported!')
+print('Water-quality csv exported!')
 
 # %% -----------------------------------------------------------------------------------------------------------------
 # Write summary file
@@ -630,7 +730,7 @@ except IOError:
     logging.critical("Error: could not write summary file")
     exit()
 summaryFile.write("Processed on {:%Y-%m-%d %H:%M:%S}\n\n".format(datetime.datetime.now()))
-totalDistance = importfile.loc[len(importfile)-1, "Cum_dist"]/1000
+totalDistance = importfile1.loc[len(importfile1)-1, "Cum_dist"]/1000
 summaryFile.write("Total distance processed: %.2f" % totalDistance + " kilometers\n")
 summaryFile.write("Number of resistivity files read: " + str(len(reorderedSubset)) + "\n")
 for f in reorderedSubset.NewFilename:
