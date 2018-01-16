@@ -13,12 +13,13 @@
 # USGS
 # Texas Water Science Center
 # dswallace@usgs.gov
-# 
-# Combines multiple resistivity and water-quality profiles in the form of semicolon and comma delimited .txt files and exports .csv files for import into Oasis and .shp for GIS. 
-# 
-# Tkinter code was modified from DSWallace integrateGeophysicsQW.py script. 
+#
+# Combines multiple resistivity and water-quality profiles in the form of semicolon and comma delimited .txt files and exports .csv files for import into Oasis and .shp for GIS.
+#
+# Tkinter code was modified from DSWallace integrateGeophysicsQW.py script.
 # """
 #%%
+import easygui as eg
 from Tkinter import *
 import pandas as pd
 from Tkinter import Tk
@@ -58,7 +59,7 @@ def band_pass(df,column, min, max):
 def depth_filt(df, column, offset, factor):
     df[column+'_filt']=df[column]
     df[column+'_filt'][df[column]<offset+factor]=np.nan
-    
+
 #%%
 # Defining rolling average filter
 def rolling_avg(df, column1, column2, width):
@@ -243,7 +244,7 @@ logging.info("Copying renamed files to new directory\n")
 for i, fOld in enumerate(reorderedSubset["Filename"]):
     fNew = path + "\\" + reorderedSubset.loc[i, "NewFilename"].replace('/', '\\').split('\\')[-1]
     copyfile(fOld, fNew)
-    
+
 # %% -----------------------------------------------------------------------------------------------------------------
 # Preprocessing Resistivity Data
 print('Aggregating raw data files')
@@ -340,7 +341,7 @@ importfile = importfile[importfile["Lon"] != 0]
 importfile.reset_index(inplace=True, drop=True)
 
 # Reformat numbers in the file to float
-for col in importfile.columns[1:]: 
+for col in importfile.columns[1:]:
     try:
         importfile[col] = importfile[col].astype(float)
     except:
@@ -353,7 +354,7 @@ j=1
 for x in range(1,len(importfile.Filename)):
     if importfile.ix[x,"Filename"]==importfile.ix[x-1,"Filename"]:
         importfile.ix[x,"File"]=importfile.ix[x-1,"File"]
-        
+
     elif importfile.ix[x,"Filename"]!=importfile.ix[x-1,"Filename"]:
         j+=1
         importfile.ix[x,"File"]=j
@@ -604,7 +605,7 @@ qwdata['Ohm_m']=qwdata['Res_ocm']/100
 rolling_avg(qwdata, 'Ohm_m', 'Ohm_m', 20)
 
 #%%
-for col in qwdata.columns[1:]:                  
+for col in qwdata.columns[1:]:
     try:
         qwdata[col] = qwdata[col].astype(float)
     except:
@@ -633,13 +634,13 @@ j=1
 for x in range(1,len(qwdata.Filename)):
     if qwdata.ix[x,"Filename"]==qwdata.ix[x-1,"Filename"]:
         qwdata.ix[x,"File"]=qwdata.ix[x-1,"File"]
-        
+
     elif qwdata.ix[x,"Filename"]!=qwdata.ix[x-1,"Filename"]:
         j+=1
         qwdata.ix[x,"File"]=j
     else:
         break
-        
+
 #%%
 #Exporting resistivity data as a shapefile
 logging.info("Saving processed water-quality shapefile\n")
@@ -742,3 +743,59 @@ for f in wqreorderedSubset.NewFilename:
     summaryFile.write('\n')
 summaryFile.write("\n\n")
 summaryFile.close()
+
+#%% Data Release Code
+fieldNames=['Iris Serial Number','Cable Serial Number','EchoSounder GPS Serial Number','QW Probe Serial Number']
+msg='Fill in the values'
+title='Data Release Form'
+fieldValues=['18705-4177458684-507','0117352673-87','1532702SCSC','16F102579']
+eg.multenterbox(msg,title,fieldNames, fieldValues)
+if fieldValues is None:
+    sys.exit(0)
+
+while 1:
+    errmsg = ""
+    for i, name in enumerate(fieldNames):
+        if fieldValues[i].strip() == "":
+            errmsg += "{} is a required field.\n\n".format(name)
+        if errmsg == "":
+            break # no problems found
+
+        fieldValues = eg.multenterbox(errmsg, title, fieldNames, fieldValues)
+    if fieldValues is None:
+        break
+#%%
+dr_raw=importfile[['File','Depth','Lat','Lon','Altitude','Cum_dist','In_n','In_p','V1_n','V1_p','V2_n','V2_p','V3_n','V3_p','V4_n','V4_p','V5_n','V5_p','V6_n','V6_p','V7_n','V7_p','V8_n','V8_p','V9_n','V9_p','V10_n','V10_p','Rho 1','Rho 2','Rho 3','Rho 4','Rho 5','Rho 6','Rho 7','Rho 8','Rho 9','Rho 10','C1','C2','P1','P2','P3','P4','P5','P6','P7','P8','P9','P10','P11']]
+
+dr_post=importfile[['File','Depth_rollavg','Ohm_m','Lat','Lon','Altitude_rollavg','Cum_dist','Rho 1_rollavg','Rho 2_rollavg','Rho 3_rollavg','Rho 4_rollavg','Rho 5_rollavg','Rho 6_rollavg','Rho 7_rollavg','Rho 8_rollavg','Rho 9_rollavg','Rho 10_rollavg']]
+#%%
+dr_raw['Iris_SN']=fieldValues[0]
+dr_raw['Cable_SN']=fieldValues[1]
+dr_raw['Echo_GPS_SN']=fieldValues[2]
+dr_raw['QW_SN']=fieldValues[3]
+
+dr_post['Iris_SN']=fieldValues[0]
+dr_post['Cable_SN']=fieldValues[1]
+dr_post['Echo_GPS_SN']=fieldValues[2]
+dr_post['QW_SN']=fieldValues[3]
+
+dr_raw.rename(columns={'File':'Profile','Lat':'Latitude','Lon':'Longitude','Cum_dist':'UTM_distance','Rho 1':'Rho_1','Rho 2':'Rho_2','Rho 3':'Rho_3','Rho 4':'Rho_4','Rho 5':'Rho_5','Rho 6':'Rho_6','Rho 7':'Rho_7','Rho 8':'Rho_8','Rho 9':'Rho_9','Rho 10':'Rho_10','Altitude':'Elevation'}, inplace=True)
+
+dr_post.rename(columns={'File':'Profile','Lat':'Latitude','Lon':'Longitude','Cum_dist':'UTM_distance','Rho 1_rollavg':'Rho1','Rho 2_rollavg':'Rho2','Rho 3_rollavg':'Rho3','Rho 4_rollavg':'Rho4','Rho 5_rollavg':'Rho5','Rho 6_rollavg':'Rho6','Rho 7_rollavg':'Rho7','Rho 8_rollavg':'Rho8','Rho 9_rollavg':'Rho9','Rho 10_rollavg':'Rho10','Altitude':'Elevation','Ohm_m':'Water_Res'}, inplace=True)
+
+##%%
+##ex_bin = pd.read_csv('U:\Prosys_bin.txt',sep='\s')
+#dt = np.dtype([('-','U'),('El-array','U'),('Spa.1','f4'),('Spa.2','f4'),('Spa.3','f4'),('Spa.4','f4'),('Rho','f4'),('Dev.','f4'),('M','f4'),('Sp','f4'),('Vp','f4'),('In','f4'),('Time','f4'),('Spa.5','f4'),('Spa.6','f4'),('Spa.7','f4'),('Spa.8','f4'),('Spa.9','f4'),('Spa.10','f4'),('Spa.11','f4'),('Spa.12','f4'),('M1','f4'),('M2','f4'),('M3','f4'),('M4','f4'),('M5','f4'),('M6','f4'),('M7','f4'),('M8','f4'),('M9','f4'),('M10','f4'),('M11','f4'),('M12','f4'),('M13','f4'),('M14','f4'),('M15','f4'),('M16','f4'),('M17','f4'),('M18','f4'),('M19','f4'),('M20','f4'),('Mdly','f4'),('TM1','f4'),('TM2','f4'),('TM3','f4'),('TM4','f4'),('TM5','f4'),('TM6','f4'),('TM7','f4'),('TM8','f4'),('TM9','f4'),('TM10','f4'),('TM11','f4'),('TM12','f4'),('TM13','f4'),('TM14','f4'),('TM15','f4'),('TM16','f4'),('TM17','f4'),('TM18','f4'),('TM19','f4'),('TM20','f4'),('Stack','f4'),('Rs-Check','f4'),('Vab','f4'),('Pab','f4'),('Rab','f4'),('Latitude','f4'),('Longitude','f4'),('Name','f4'),('Channel','f4'),('Overload','f4'),('Tx-Bat','f4'),('Rx-Bat','f4'),('Temp.','f4'),('Date','U'),('Gapfiller','f4'),('Synch','f4'),('Cole Tau','f4'),('Cole M','f4'),('Cole rms','f4')])
+#
+#data = np.fromfile('G:\Resisivity Surveys\Ouachita\Day1Total\OuchitaRiver_082317_7.bin',dtype=dt)
+#df = pd.DataFrame(data.tolist(), columns=data.dtype.names)
+
+##%%
+#import struct
+#header_size=0
+#num_data_bytes=320
+#
+#with open('G:\Resisivity Surveys\Ouachita\Day1Total\OuchitaRiver_082317_7.bin','rb') as fin:
+#    header = fin.read(header_size)
+#    data_str = fin.read(num_data_bytes)
+#    data_tuple = struct.unpack('80f',data_str)
