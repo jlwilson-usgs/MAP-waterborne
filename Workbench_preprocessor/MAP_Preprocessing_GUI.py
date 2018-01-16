@@ -4,15 +4,15 @@
 # In[31]:
 
 """
-Last revised 09/01/2017
+Last revised 01/16/2018
 
 Jordan Wilson
 
-This script takes the resistivity survey information from Oasis Montaj and formats it for import into Workbench.
+This code is for a GUI for preprocessing geophysical data from the USGS MAP project in Oasis and Workbench and also creates csv files for USGS Data Releases.
 
 """
 #%%
-from easygui import *
+import easygui as eg
 import sys
 import pandas as pd
 from Tkinter import *
@@ -36,14 +36,14 @@ import warnings
 
 #%%
 def workbench():
-    msgbox("For this script to work, the final Rho columns must be named 'Final_Rho_1,Final_Rho_2,...,Final_Rho_n', Latitude and Longitude columns must be named 'Lat' and 'Lon', and the corrected distance and depth columns should be named 'Cor_Dist' and 'Cor_Depth', and the QW columns containing resisitivty values from the QW meter should be named 'Ohm_m'")
-    infile = fileopenbox(title="Select Oasis output csv file for processing")
+    eg.msgbox("For this script to work, the final Rho columns must be named 'Final_Rho_1,Final_Rho_2,...,Final_Rho_n', Latitude and Longitude columns must be named 'Lat' and 'Lon', and the corrected distance and depth columns should be named 'Cor_Dist' and 'Cor_Depth', and the QW columns containing resisitivty values from the QW meter should be named 'Ohm_m'")
+    infile = eg.fileopenbox(title="Select Oasis output csv file for processing")
 
     try:
         data = pd.read_csv(infile)
-        msgbox('Oasis file read')
+        eg.msgbox('Oasis file read')
     except:
-        msgbox('Oasis file not read')
+        eg.msgbox('Oasis file not read')
 
     try:
         data['File_w']=data['Line'].str.split('L',1)
@@ -57,7 +57,7 @@ def workbench():
             data['File']=data['File'].astype('int')
 
         except KeyError,e:
-            msgbox('The following column is missing in the input file: %s. Check to make sure all required columns are present.' % str(e))
+            eg.msgbox('The following column is missing in the input file: %s. Check to make sure all required columns are present.' % str(e))
 
     out = pd.DataFrame()
 
@@ -87,13 +87,13 @@ def workbench():
     try:
         for x,y in reversed(zipped):
             out.insert(0,x,data['{}'.format(y)].values)
-        msgbox('File formatted')
-        outfile = filesavebox(title="Save processed file as...",default='File_WorkbenchImport.csv',filetypes=['*.csv'])
+        eg.msgbox('File formatted')
+        outfile = eg.filesavebox(title="Save processed file as...",default='File_WorkbenchImport.csv',filetypes=['*.csv'])
         out.to_csv(outfile,index=False)
-        msgbox('Output csv file saved')
-        msgbox("Workbench Preprocessor Finished")
+        eg.msgbox('Output csv file saved')
+        eg.msgbox("Workbench Preprocessor Finished")
     except KeyError, e:
-        msgbox("Missing column",'The following column is missing in the input file: %s. Check to make sure all required columns are present.' % str(e))
+        eg.msgbox("Missing column",'The following column is missing in the input file: %s. Check to make sure all required columns are present.' % str(e))
 
 #%%
 def oasis():
@@ -798,106 +798,73 @@ def oasis():
         summaryFile.write('\n')
     summaryFile.write("\n\n")
     summaryFile.close()
-#%%
-def data_release():
-    msgbox("For this script to work, the final Rho columns must be named 'Final_Rho_1,Final_Rho_2,...,Final_Rho_n', Latitude and Longitude columns must be named 'Lat' and 'Lon', and the corrected distance and depth columns should be named 'Cor_Dist' and 'Cor_Depth', and the QW columns containing resisitivty values from the QW meter should be named 'Ohm_m'")
-    infile = fileopenbox(title="Select Oasis output csv file for processing")
+    #%%
+    # Data Release
+    fieldNames=['Iris Serial Number','Cable Serial Number','EchoSounder GPS Serial Number','QW Probe Serial Number']
+    msg='Fill in the values'
+    title='Data Release Form'
+    fieldValues=['18705-4177458684-507','0117352673-87','1532702SCSC','16F102579']
+    eg.multenterbox(msg,title,fieldNames, fieldValues)
+    if fieldValues is None:
+        sys.exit(0)
 
-    try:
-        data = pd.read_csv(infile)
-        msgbox('Oasis file read')
-    except:
-        msgbox('Oasis file not read')
+    while 1:
+        errmsg = ""
+        for i, name in enumerate(fieldNames):
+            if fieldValues[i].strip() == "":
+                errmsg += "{} is a required field.\n\n".format(name)
+            if errmsg == "":
+                break # no problems found
 
-    try:
-        data['File_w']=data['Line'].str.split('L',1)
-        data['File']=''
-        data['File']=data.apply(lambda row: row['File_w'][1],axis=1)
-        data['File']=data['File'].astype('int')
+            fieldValues = eg.multenterbox(errmsg, title, fieldNames, fieldValues)
+        if fieldValues is None:
+            break
+    #%%
+    dr_raw=importfile[['File','Depth','Lat','Lon','Altitude','Cum_dist','In_n','In_p','V1_n','V1_p','V2_n','V2_p','V3_n','V3_p','V4_n','V4_p','V5_n','V5_p','V6_n','V6_p','V7_n','V7_p','V8_n','V8_p','V9_n','V9_p','V10_n','V10_p','Rho 1','Rho 2','Rho 3','Rho 4','Rho 5','Rho 6','Rho 7','Rho 8','Rho 9','Rho 10','C1','C2','P1','P2','P3','P4','P5','P6','P7','P8','P9','P10','P11']]
 
-    except:
+    dr_post=importfile[['File','Depth_rollavg','Ohm_m','Lat','Lon','Altitude_rollavg','Cum_dist','Rho 1_rollavg','Rho 2_rollavg','Rho 3_rollavg','Rho 4_rollavg','Rho 5_rollavg','Rho 6_rollavg','Rho 7_rollavg','Rho 8_rollavg','Rho 9_rollavg','Rho 10_rollavg']]
+    #%%
+    dr_raw['Iris_SN']=fieldValues[0]
+    dr_raw['Cable_SN']=fieldValues[1]
+    dr_raw['Echo_GPS_SN']=fieldValues[2]
+    dr_raw['QW_SN']=fieldValues[3]
 
-        try:
-            data['File']=data['File'].astype('int')
+    dr_post['Iris_SN']=fieldValues[0]
+    dr_post['Cable_SN']=fieldValues[1]
+    dr_post['Echo_GPS_SN']=fieldValues[2]
+    dr_post['QW_SN']=fieldValues[3]
 
-        except KeyError,e:
-            msgbox('The following column is missing in the input file: %s. Check to make sure all required columns are present.' % str(e))
+    dr_raw.rename(columns={'File':'Profile','Lat':'Latitude','Lon':'Longitude','Cum_dist':'UTM_distance','Rho 1':'Rho_1','Rho 2':'Rho_2','Rho 3':'Rho_3','Rho 4':'Rho_4','Rho 5':'Rho_5','Rho 6':'Rho_6','Rho 7':'Rho_7','Rho 8':'Rho_8','Rho 9':'Rho_9','Rho 10':'Rho_10','Altitude':'Elevation'}, inplace=True)
 
-    out = pd.DataFrame()
+    dr_post.rename(columns={'File':'Profile','Lat':'Latitude','Lon':'Longitude','Cum_dist':'UTM_distance','Rho 1_rollavg':'Rho1','Rho 2_rollavg':'Rho2','Rho 3_rollavg':'Rho3','Rho 4_rollavg':'Rho4','Rho 5_rollavg':'Rho5','Rho 6_rollavg':'Rho6','Rho 7_rollavg':'Rho7','Rho 8_rollavg':'Rho8','Rho 9_rollavg':'Rho9','Rho 10_rollavg':'Rho10','Altitude':'Elevation','Ohm_m':'Water_Res'}, inplace=True)
 
-    data.rename(columns={'File':'Profile'}, inplace=True)
+    if eg.ynbox(title='Data Release Utility',msg='Do you want to export raw and processed data in a data release format?'):
+       raw = eg.filesavebox(title="Save raw data release file as...",default='{}_Raw_DataRelease.csv'.format(userRiverName),filetypes=['*.csv'])
+       post = eg.filesavebox(title="Save prcoessed data release file as...",default='{}_Processed_DataRelease.csv'.format(userRiverName),filetypes=['*.csv'])
+       dr_post.to_csv(post, index=False)
+    else:
+       sys.exit(0)
 
-    headers=('/Water_Res','Cor_Dist','Cor_Depth','Rho_1','Rho_2','Rho_3','Rho_4','Rho_5','Rho_6','Rho_7','Rho_8','Rho_9','Rho_10','C1','C2','P1','P2','P3','P4','P5','P6','P7','P8','P9','P10','P11','Lat','Lon','Final_Altitude','Profile')
-    data_cols = ('Ohm_m',
-                 'Cor_Dist',
-                 'Cor_Depth',
-                 'Final_Rho_1',
-                 'Final_Rho_2',
-                 'Final_Rho_3',
-                 'Final_Rho_4',
-                 'Final_Rho_5',
-                 'Final_Rho_6',
-                 'Final_Rho_7',
-                 'Final_Rho_8',
-                 'Final_Rho_9',
-                 'Final_Rho_10',
-                 'C1','C2','P1','P2','P3','P4','P5','P6','P7','P8','P9','P10','P11',
-                 'Lat',
-                 'Lon',
-                 'Final_Altitude',
-                 'Profile')
-
-    zipped = zip(headers, data_cols)
-    try:
-        for x,y in reversed(zipped):
-            out.insert(0,x,data['{}'.format(y)].values)
-        msgbox('File formatted')
-<<<<<<< HEAD
-
-    except KeyError, e:
-        msgbox("Missing column",'The following column is missing in the input file: %s. Check to make sure all required columns are present.' % str(e))
-
-    multienterbox(title='',msg='Fill in the values',fields=['Iris Serial Number','Cable Serial Number','EchoSounder GPS Serial Number','QW Probe Serial Number'],)
-
-    outfile = filesavebox(title="Save processed file as...",default='File_WorkbenchImport.csv',filetypes=['*.csv'])
-    out.to_csv(outfile,index=False)
-    msgbox('Output csv file saved')
-    msgbox("Workbench Preprocessor Finished")
-
-=======
-        outfile = filesavebox(title="Save processed file as...",default='File_WorkbenchImport.csv',filetypes=['*.csv'])
-        out.to_csv(outfile,index=False)
-        msgbox('Output csv file saved')
-        msgbox("Workbench Preprocessor Finished")
-    except KeyError, e:
-        msgbox("Missing column",'The following column is missing in the input file: %s. Check to make sure all required columns are present.' % str(e))
-
->>>>>>> bdcc53e... First commit of preprocessing GUI combining Oasis and Workbench preprocessors
 #%%
 #Bring up GUI and execute functions
-ret_val = msgbox("USGS Workbench Preprocessor and Data Release Utility")
-if ret_val is None: # User closed msgbox
+ret_val = eg.msgbox("USGS Workbench Preprocessor and Data Release Utility")
+if ret_val is None: # User closed eg.msgbox
     sys.exit(0)
 
 title ="USGS Oasis/Workbench Preprocessor and Data Release Utility"
 msg = "Choose which utility you would like to use"
-choices = ["Oasis Preprocessor","Workbench Preprocessor","Data Release","Oasis/Workbench Preprocessor","All"]
+choices = ["Oasis Preprocessor","Workbench Preprocessor","Oasis/Workbench Preprocessor"]
 
 while 1:
-    choice = buttonbox(msg, title, choices)
+    choice = eg.buttonbox(msg, title, choices)
     if choice is None:
         sys.exit(0)
     elif choice=="Oasis Preprocessor":
         oasis()
     elif choice=="Workbench Preprocessor":
         workbench()
-    elif choice=="Data Release":
-        data_release()
     elif choice=="Oasis/Workbench Preprocessor":
         oasis()
         workbench()
-    elif choice=="All":
-        oasis()
-        workbench()
-        data_release()
+
 
