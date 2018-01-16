@@ -800,48 +800,49 @@ def oasis():
     summaryFile.close()
     #%%
     # Data Release
-    fieldNames=['Iris Serial Number','Cable Serial Number','EchoSounder GPS Serial Number','QW Probe Serial Number']
-    msg='Fill in the values'
-    title='Data Release Form'
-    fieldValues=['18705-4177458684-507','0117352673-87','1532702SCSC','16F102579']
-    eg.multenterbox(msg,title,fieldNames, fieldValues)
-    if fieldValues is None:
-        sys.exit(0)
+    if eg.ynbox(title='Data Release Utility',msg='Do you want to export raw and processed data in a data release format?'):
+        fieldNames=['Iris Serial Number','Cable Serial Number','EchoSounder GPS Serial Number','QW Probe Serial Number']
+        msg='Fill in the values'
+        title='Data Release Form'
+        fieldValues=['18705-4177458684-507','0117352673-87','1532702SCSC','16F102579']
+        eg.multenterbox(msg,title,fieldNames, fieldValues)
+        if fieldValues is None:
+            sys.exit(0)
 
-    while 1:
-        errmsg = ""
-        for i, name in enumerate(fieldNames):
-            if fieldValues[i].strip() == "":
-                errmsg += "{} is a required field.\n\n".format(name)
+        while 1:
+            errmsg = ""
+            for i, name in enumerate(fieldNames):
+                if fieldValues[i].strip() == "":
+                    errmsg += "{} is a required field.\n\n".format(name)
             if errmsg == "":
                 break # no problems found
 
             fieldValues = eg.multenterbox(errmsg, title, fieldNames, fieldValues)
-        if fieldValues is None:
-            break
-    #%%
-    dr_raw=importfile[['File','Depth','Lat','Lon','Altitude','Cum_dist','In_n','In_p','V1_n','V1_p','V2_n','V2_p','V3_n','V3_p','V4_n','V4_p','V5_n','V5_p','V6_n','V6_p','V7_n','V7_p','V8_n','V8_p','V9_n','V9_p','V10_n','V10_p','Rho 1','Rho 2','Rho 3','Rho 4','Rho 5','Rho 6','Rho 7','Rho 8','Rho 9','Rho 10','C1','C2','P1','P2','P3','P4','P5','P6','P7','P8','P9','P10','P11']]
+            if fieldValues is None:
+                break
+        #%%
+        dr_raw=importfile[['File','Depth','Lat','Lon','Altitude','Cum_dist','In_n','In_p','V1_n','V1_p','V2_n','V2_p','V3_n','V3_p','V4_n','V4_p','V5_n','V5_p','V6_n','V6_p','V7_n','V7_p','V8_n','V8_p','V9_n','V9_p','V10_n','V10_p','Rho 1','Rho 2','Rho 3','Rho 4','Rho 5','Rho 6','Rho 7','Rho 8','Rho 9','Rho 10','C1','C2','P1','P2','P3','P4','P5','P6','P7','P8','P9','P10','P11']]
 
-    dr_post=importfile[['File','Depth_rollavg','Ohm_m','Lat','Lon','Altitude_rollavg','Cum_dist','Rho 1_rollavg','Rho 2_rollavg','Rho 3_rollavg','Rho 4_rollavg','Rho 5_rollavg','Rho 6_rollavg','Rho 7_rollavg','Rho 8_rollavg','Rho 9_rollavg','Rho 10_rollavg']]
-    #%%
-    dr_raw['Iris_SN']=fieldValues[0]
-    dr_raw['Cable_SN']=fieldValues[1]
-    dr_raw['Echo_GPS_SN']=fieldValues[2]
-    dr_raw['QW_SN']=fieldValues[3]
+        dr_post=importfile[['File','Depth_rollavg','Ohm_m','Lat','Lon','Altitude_rollavg','Cum_dist','Rho 1_rollavg','Rho 2_rollavg','Rho 3_rollavg','Rho 4_rollavg','Rho 5_rollavg','Rho 6_rollavg','Rho 7_rollavg','Rho 8_rollavg','Rho 9_rollavg','Rho 10_rollavg']]
+        #%%
+        dr_raw['Iris_SN']=fieldValues[0]
+        dr_raw['Cable_SN']=fieldValues[1]
+        dr_raw['Echo_GPS_SN']=fieldValues[2]
+        dr_raw['QW_SN']=fieldValues[3]
 
-    dr_post['Iris_SN']=fieldValues[0]
-    dr_post['Cable_SN']=fieldValues[1]
-    dr_post['Echo_GPS_SN']=fieldValues[2]
-    dr_post['QW_SN']=fieldValues[3]
+        dr_post['Iris_SN']=fieldValues[0]
+        dr_post['Cable_SN']=fieldValues[1]
+        dr_post['Echo_GPS_SN']=fieldValues[2]
+        dr_post['QW_SN']=fieldValues[3]
 
-    dr_raw.rename(columns={'File':'Profile','Lat':'Latitude','Lon':'Longitude','Cum_dist':'UTM_distance','Rho 1':'Rho_1','Rho 2':'Rho_2','Rho 3':'Rho_3','Rho 4':'Rho_4','Rho 5':'Rho_5','Rho 6':'Rho_6','Rho 7':'Rho_7','Rho 8':'Rho_8','Rho 9':'Rho_9','Rho 10':'Rho_10','Altitude':'Elevation'}, inplace=True)
+        dr_raw.rename(columns={'File':'Profile','Lat':'Latitude','Lon':'Longitude','Cum_dist':'UTM_distance','Rho 1':'Rho_1','Rho 2':'Rho_2','Rho 3':'Rho_3','Rho 4':'Rho_4','Rho 5':'Rho_5','Rho 6':'Rho_6','Rho 7':'Rho_7','Rho 8':'Rho_8','Rho 9':'Rho_9','Rho 10':'Rho_10','Altitude':'Elevation'}, inplace=True)
 
-    dr_post.rename(columns={'File':'Profile','Lat':'Latitude','Lon':'Longitude','Cum_dist':'UTM_distance','Rho 1_rollavg':'Rho1','Rho 2_rollavg':'Rho2','Rho 3_rollavg':'Rho3','Rho 4_rollavg':'Rho4','Rho 5_rollavg':'Rho5','Rho 6_rollavg':'Rho6','Rho 7_rollavg':'Rho7','Rho 8_rollavg':'Rho8','Rho 9_rollavg':'Rho9','Rho 10_rollavg':'Rho10','Altitude':'Elevation','Ohm_m':'Water_Res'}, inplace=True)
+        dr_post.rename(columns={'File':'Profile','Lat':'Latitude','Lon':'Longitude','Cum_dist':'UTM_distance','Rho 1_rollavg':'Rho1','Rho 2_rollavg':'Rho2','Rho 3_rollavg':'Rho3','Rho 4_rollavg':'Rho4','Rho 5_rollavg':'Rho5','Rho 6_rollavg':'Rho6','Rho 7_rollavg':'Rho7','Rho 8_rollavg':'Rho8','Rho 9_rollavg':'Rho9','Rho 10_rollavg':'Rho10','Altitude':'Elevation','Ohm_m':'Water_Res'}, inplace=True)
 
-    if eg.ynbox(title='Data Release Utility',msg='Do you want to export raw and processed data in a data release format?'):
-       raw = eg.filesavebox(title="Save raw data release file as...",default='{}_Raw_DataRelease.csv'.format(userRiverName),filetypes=['*.csv'])
-       post = eg.filesavebox(title="Save prcoessed data release file as...",default='{}_Processed_DataRelease.csv'.format(userRiverName),filetypes=['*.csv'])
-       dr_post.to_csv(post, index=False)
+        raw = eg.filesavebox(title="Save raw data release file as...",default='{}_Raw_DataRelease.csv'.format(userRiverName),filetypes=['*.csv'])
+        post = eg.filesavebox(title="Save prcoessed data release file as...",default='{}_Processed_DataRelease.csv'.format(userRiverName),filetypes=['*.csv'])
+        dr_post.to_csv(post, index=False)
+        dr_raw.to_csv(raw, index=False)
     else:
        sys.exit(0)
 
