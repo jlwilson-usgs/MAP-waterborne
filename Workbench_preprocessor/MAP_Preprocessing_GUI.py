@@ -158,21 +158,21 @@ def oasis():
         exit()
 
     # Water Quality Files
-    wq_folder = askdirectory(title="Select folder that contains all raw water-quality data for processing...")
+    wq_folder = askdirectory(title="Select folder that contains all raw water-quality data for processing...", initialdir=res_folder)
     if not glob.glob('{}/*.csv'.format(wq_folder)):
         tkMessageBox.showerror("FILE ERROR", "No water quality files contained within folder or incorrect format")
         logging.error("No csv files found within the selected water quality folder\n")
         exit()
 
     # Initialization File
-    ini_file = askopenfilename(title="Select ini file used to collect the resistivity data",filetypes=[("INI Files", "*.ini")])
+    ini_file = askopenfilename(title="Select ini file used to collect the resistivity data",filetypes=[("INI Files", "*.ini")], initialdir=res_folder)
     if not ini_file:
         tkMessageBox.showerror("FILE ERROR", "No INI file selected")
         logging.error("No INI file selected by the user\n")
         exit()
 
     # Save File Location
-    directory = askdirectory(title="Select directory to save the reordered resistivity and water-quality data")
+    directory = askdirectory(title="Select directory to save the reordered resistivity and water-quality data", initialdir=res_folder)
 
     # Record logging events to log file
     logging.basicConfig(filename=directory+"\\OASIS_PREPROCESSING_LOGFILE.txt", format='%(asctime)s %(levelname)s %(message)s',
@@ -490,7 +490,7 @@ def oasis():
 
     #%%
     logging.info("Saving processed resistivity file\n")
-    saveRes = asksaveasfilename(defaultextension='.csv',title="Designate resitivity csv name and location", filetypes=[('csv file', '*.csv')])
+    saveRes = asksaveasfilename(initialfile='{}_Res.csv'.format(userRiverName),defaultextension='.csv',title="Designate resitivity csv name and location", filetypes=[('csv file', '*.csv')])
     try:
         importfile1.to_csv(saveRes, index=False)
     except IOError:
@@ -699,7 +699,7 @@ def oasis():
     #%%
     #Exporting resistivity data as a shapefile
     logging.info("Saving processed water-quality shapefile\n")
-    saveWQshp = asksaveasfilename(defaultextension='.shp',title="Designate water-quality shapefile name and location", filetypes=[('shp file', '*.shp')])
+    saveWQshp = asksaveasfilename(initialfile='{}_WQ.shp'.format(userRiverName),defaultextension='.shp',title="Designate water-quality shapefile name and location", filetypes=[('shp file', '*.shp')], initialdir=directory)
     try:
         qwdata.to_file(saveWQshp,driver='ESRI Shapefile')
     except IOError:
@@ -740,7 +740,7 @@ def oasis():
 
     #%%
     logging.info("Saving preliminary merged QW/resistivity shapefile\n")
-    savepreres = asksaveasfilename(defaultextension='.shp',title="Designate preliminary merged QW/resitivity shapefile name and location", filetypes=[('shp file', '*.shp')])
+    savepreres = asksaveasfilename(initialfile='{}_Merged_QWRes.shp'.format(userRiverName),defaultextension='.shp',title="Designate preliminary merged QW/resitivity shapefile name and location", filetypes=[('shp file', '*.shp')], initialdir=directory)
     try:
         resOhm.to_file(savepreres,driver='ESRI Shapefile')
     except IOError:
@@ -754,7 +754,7 @@ def oasis():
 
     #%%
     logging.info("Export preliminary merged QW/resisitivty data\n")
-    resOhm_csv = asksaveasfilename(defaultextension='.csv',title="Designate preliminary merged QW/resisitivty csv name and location", filetypes=[('csv file', '*.csv')])
+    resOhm_csv = asksaveasfilename(initialfile='{}_Merged_WQRes.csv'.format(userRiverName),defaultextension='.csv',title="Designate preliminary merged QW/resisitivty csv name and location", filetypes=[('csv file', '*.csv')], initialdir=directory)
     try:
         resOhm_df.to_csv(resOhm_csv, index=False)
     except IOError:
@@ -769,7 +769,7 @@ def oasis():
 
     #%%
     logging.info("Export water quality data\n")
-    saveQW = asksaveasfilename(defaultextension='.csv',title="Designate water-quality csv name and location", filetypes=[('csv file', '*.csv')])
+    saveQW = asksaveasfilename(initialfile='{}_WQ.csv'.format(userRiverName),defaultextension='.csv',title="Designate water-quality csv name and location", filetypes=[('csv file', '*.csv')], initialdir=directory)
     try:
         qwdata.to_csv(saveQW, index=False)
     except IOError:
@@ -820,10 +820,11 @@ def oasis():
             fieldValues = eg.multenterbox(errmsg, title, fieldNames, fieldValues)
             if fieldValues is None:
                 break
-        #%%
-        dr_raw=importfile[['File','Depth','Lat','Lon','Altitude','Cum_dist','In_n','In_p','V1_n','V1_p','V2_n','V2_p','V3_n','V3_p','V4_n','V4_p','V5_n','V5_p','V6_n','V6_p','V7_n','V7_p','V8_n','V8_p','V9_n','V9_p','V10_n','V10_p','Rho 1','Rho 2','Rho 3','Rho 4','Rho 5','Rho 6','Rho 7','Rho 8','Rho 9','Rho 10','C1','C2','P1','P2','P3','P4','P5','P6','P7','P8','P9','P10','P11']]
 
-        dr_post=importfile[['File','Depth_rollavg','Ohm_m','Lat','Lon','Altitude_rollavg','Cum_dist','Rho 1_rollavg','Rho 2_rollavg','Rho 3_rollavg','Rho 4_rollavg','Rho 5_rollavg','Rho 6_rollavg','Rho 7_rollavg','Rho 8_rollavg','Rho 9_rollavg','Rho 10_rollavg']]
+        #%%
+        dr_raw=importfile[['File','UTC','Depth','Lat','Lon','Altitude','Cum_dist','In_n','In_p','V1_n','V1_p','V2_n','V2_p','V3_n','V3_p','V4_n','V4_p','V5_n','V5_p','V6_n','V6_p','V7_n','V7_p','V8_n','V8_p','V9_n','V9_p','V10_n','V10_p','Rho 1','Rho 2','Rho 3','Rho 4','Rho 5','Rho 6','Rho 7','Rho 8','Rho 9','Rho 10','C1','C2','P1','P2','P3','P4','P5','P6','P7','P8','P9','P10','P11']]
+
+        dr_post=importfile[['File','UTC','Depth_rollavg','Ohm_m','Lat','Lon','Altitude_rollavg','Cum_dist','Rho 1_rollavg','Rho 2_rollavg','Rho 3_rollavg','Rho 4_rollavg','Rho 5_rollavg','Rho 6_rollavg','Rho 7_rollavg','Rho 8_rollavg','Rho 9_rollavg','Rho 10_rollavg']]
         #%%
         dr_raw['Iris_SN']=fieldValues[0]
         dr_raw['Cable_SN']=fieldValues[1]
@@ -835,9 +836,9 @@ def oasis():
         dr_post['Echo_GPS_SN']=fieldValues[2]
         dr_post['QW_SN']=fieldValues[3]
 
-        dr_raw.rename(columns={'File':'Profile','Lat':'Latitude','Lon':'Longitude','Cum_dist':'UTM_distance','Rho 1':'Rho_1','Rho 2':'Rho_2','Rho 3':'Rho_3','Rho 4':'Rho_4','Rho 5':'Rho_5','Rho 6':'Rho_6','Rho 7':'Rho_7','Rho 8':'Rho_8','Rho 9':'Rho_9','Rho 10':'Rho_10','Altitude':'Elevation'}, inplace=True)
+        dr_raw.rename(columns={'File':'Profile','UTC':'Time','Lat':'Latitude','Lon':'Longitude','Cum_dist':'UTM_distance','Rho 1':'Rho_1','Rho 2':'Rho_2','Rho 3':'Rho_3','Rho 4':'Rho_4','Rho 5':'Rho_5','Rho 6':'Rho_6','Rho 7':'Rho_7','Rho 8':'Rho_8','Rho 9':'Rho_9','Rho 10':'Rho_10','Altitude':'Elevation'}, inplace=True)
 
-        dr_post.rename(columns={'File':'Profile','Lat':'Latitude','Lon':'Longitude','Cum_dist':'UTM_distance','Rho 1_rollavg':'Rho1','Rho 2_rollavg':'Rho2','Rho 3_rollavg':'Rho3','Rho 4_rollavg':'Rho4','Rho 5_rollavg':'Rho5','Rho 6_rollavg':'Rho6','Rho 7_rollavg':'Rho7','Rho 8_rollavg':'Rho8','Rho 9_rollavg':'Rho9','Rho 10_rollavg':'Rho10','Altitude':'Elevation','Ohm_m':'Water_Res'}, inplace=True)
+        dr_post.rename(columns={'File':'Profile','UTC':'Time','Lat':'Latitude','Lon':'Longitude','Cum_dist':'UTM_distance','Rho 1_rollavg':'Rho1','Rho 2_rollavg':'Rho2','Rho 3_rollavg':'Rho3','Rho 4_rollavg':'Rho4','Rho 5_rollavg':'Rho5','Rho 6_rollavg':'Rho6','Rho 7_rollavg':'Rho7','Rho 8_rollavg':'Rho8','Rho 9_rollavg':'Rho9','Rho 10_rollavg':'Rho10','Altitude':'Elevation','Ohm_m':'Water_Res'}, inplace=True)
 
         raw = eg.filesavebox(title="Save raw data release file as...",default='{}_Raw_DataRelease.csv'.format(userRiverName),filetypes=['*.csv'])
         post = eg.filesavebox(title="Save prcoessed data release file as...",default='{}_Processed_DataRelease.csv'.format(userRiverName),filetypes=['*.csv'])
