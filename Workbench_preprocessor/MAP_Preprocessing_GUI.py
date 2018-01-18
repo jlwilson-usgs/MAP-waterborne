@@ -4,12 +4,21 @@
 # In[31]:
 
 """
-Last revised 01/16/2018
-
-Jordan Wilson
-
-This code is for a GUI for preprocessing geophysical data from the USGS MAP project in Oasis and Workbench and also creates csv files for USGS Data Releases.
-
+# Last Revised 1/18/2018
+#
+# Jordan Wilson
+# USGS
+# Missouri Water Science Center
+# jlwilson@usgs.gov
+#
+# David Wallace
+# USGS
+# Texas Water Science Center
+# dswallace@usgs.gov
+#
+# Combines multiple resistivity and water-quality profiles in the form of semicolon and comma delimited .txt files and exports .csv files for import into Oasis and .shp for GIS.
+#
+#
 """
 #%%
 import easygui as eg
@@ -33,6 +42,7 @@ import logging
 import traceback
 import datetime
 import warnings
+import scipy.stats
 
 #%%
 def workbench():
@@ -43,8 +53,7 @@ def workbench():
     try:
         print(userRiverName)
     except:
-        userRiverName = tkSimpleDialog.askstring("River Reach", "Please enter the name of the river reach...",
-                                             initialvalue="RIVER")
+        userRiverName = tkSimpleDialog.askstring("River Reach", "Please enter the name of the river reach...", initialvalue="RIVER")
 
     try:
         data = pd.read_csv(infile)
@@ -103,8 +112,9 @@ def workbench():
         eg.msgbox("Missing column",'The following column is missing in the input file: %s. Check to make sure all required columns are present.' % str(e))
     #%%
 def workbench_checks():
-    # Line-to-Line Continuity Check
     for x in range(1,len(out.Profile)):
+
+        # Line-to-Line Continuity Check
         if out.ix[x,"Profile"]==out.ix[x-1,"Profile"]:
             pass
 
@@ -120,14 +130,49 @@ def workbench_checks():
                     logging.warning("Line-to-Line Disconitnuity (>50%) in Water_Res")
             else:
                 pass
-
-
         else:
-            break
+            pass
+
+    # Line-to-Line Min/Max Check
+    mult=2
+    for x in out['Profile'].unique():
+        for s in range(1,11):
+            if np.max(out['Rho_{}'.format(s)][out['Profile']==x])>mult*(scipy.stats.mstats.mquantiles(out['Rho_{}'.format(s)][out['Profile']==x])[2]):
+                tkMessageBox.showwarning("WARNING", "Maximum Rho_{} in row {} larger than {} times the 3rd quantile of Line {}".format(s,out.index[out['Rho_{}'.format(s)]==np.max(out['Rho_{}'.format(s)][out['Profile']==x])][0]+2,mult,x))
+                logging.warning('Maximum Rho_{} in row {} larger than {} times the 3rd quartile of Line {}'.format(s,out.index[out['Rho_{}'.format(s)]==np.max(out['Rho_{}'.format(s)][out['Profile']==x])][0]+2,mult,x))
+            elif np.min(out['Rho_{}'.format(s)][out['Profile']==x])<1/mult*(scipy.stats.mstats.mquantiles(out['Rho_{}'.format(s)][out['Profile']==x])[0]):
+                tkMessageBox.showwarning("WARNING", "Minimum Rho_{} in row {} smaller than 1/{} times the 1st quartile of Line {}".format(s,out.index[out['Rho_{}'.format(s)]==np.min(out['Rho_{}'.format(s)][out['Profile']==x])][0]+2,mult,x))
+                logging.warning("Minimum Rho_{} in row {} smaller than 1/{} times the 1st quartile of Line {}".format(s,out.index[out['Rho_{}'.format(s)]==np.min(out['Rho_{}'.format(s)][out['Profile']==x])][0]+2,mult,x))
+            else:
+                pass
+
+            # QW checks
+    for x in out['Profile'].unique():
+        if np.max(out['/Water_Res'][out['Profile']==x])>mult*(scipy.stats.mstats.mquantiles(out['/Water_Res'][out['Profile']==x])[2]):
+            tkMessageBox.showwarning("WARNING", "Maximum Water_Res in row {} larger than {} times the 3rd quantile of Line {}".format(out.index[out['/Water_Res']==np.max(out['/Water_Res'][out['Profile']==x])][0]+2,mult,x))
+            logging.warning('Maximum Water_Res in row {} larger than {} times the 3rd quartile of Line {}'.format(out.index[out['/Water_Res']==np.max(out['/Water_Res'][out['Profile']==x])][0]+2,mult,x))
+        elif np.min(out['/Water_Res'][out['Profile']==x])<1/mult*(scipy.stats.mstats.mquantiles(out['/Water_Res'][out['Profile']==x])[0]):
+            tkMessageBox.showwarning("WARNING", "Minimum Water_Res in row {} smaller than 1/{} times the 1st quartile of Line {}".format(s,out.index[out['/Water_Res']==np.min(out['/Water_Res'][out['Profile']==x])][0]+2,mult,x))
+            logging.warning("Minimum Water_Res in row {} smaller than 1/{} times the 1st quartile of Line {}".format(out.index[out['/Water_Res']==np.min(out['/Water_Res'][out['Profile']==x])][0]+2,mult,x))
+        else:
+            pass
+
+        # Altitude checks
+        if np.max(out['Final_Altitude'][out['Profile']==x])>mult*(scipy.stats.mstats.mquantiles(out['Final_Altitude'][out['Profile']==x])[2]):
+            tkMessageBox.showwarning("WARNING", "Maximum Altitude in row {} larger than {} times the 3rd quantile of Line {}".format(out.index[out['Final_Altitude']==np.max(out['Final_Altitude'][out['Profile']==x])][0]+2,mult,x))
+            logging.warning('Maximum Altitude in row {} larger than {} times the 3rd quartile of Line {}'.format(out.index[out['Final_Altitude']==np.max(out['Final_Altitude'][out['Profile']==x])][0]+2,mult,x))
+        elif np.min(out['Final_Altitude'][out['Profile']==x])<1/mult*(scipy.stats.mstats.mquantiles(out['Final_Altitude'][out['Profile']==x])[0]):
+            tkMessageBox.showwarning("WARNING", "Minimum Altitude in row {} smaller than 1/{} times the 1st quartile of Line {}".format(out.index[out['Final_Altitude']==np.min(out['Final_Altitude'][out['Profile']==x])][0]+2,mult,x))
+            logging.warning("Minimum Altitude in row {} smaller than 1/{} times the 1st quartile of Line {}".format(out.index[out['Final_Altitude']==np.min(out['Final_Altitude'][out['Profile']==x])][0]+2,mult,x))
+        else:
+            pass
+
+# Blank Cells Check
+
 #%%
 def oasis():
     #%%
-    global userRiverName
+    global userRiverName, importfile, importfile1
     # Supressing depreciation warning from output
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore",category=DeprecationWarning)
@@ -151,6 +196,12 @@ def oasis():
         df[column1+'_rollavg']=df[column2]
         df[column1+'_rollavg']= df[column1+'_rollavg'].rolling(width, min_periods=1).mean()
 
+    #%%
+    # Defining the rolling median filter
+    def rolling_median(df, column1, column2, width):
+        df[column1+'_rollmed']=df[column2]
+        df[column1+'_rollmed']= df[column1+'_rollmed'].rolling(width, min_periods=1).median()
+
     def haversine(lon1, lat1, lon2, lat2):
         """
         Calculate the great circle distance between two points
@@ -166,12 +217,6 @@ def oasis():
         c = 2 * asin(sqrt(a))
         r = 6371  # Radius of earth in kilometers. Use 3956 for miles
         return c * r
-
-    def catchEmAll(*exc_info):
-        errormessage = "".join(traceback.format_exception(*exc_info))
-        logging.critical("Uncaught error encountered: \n%s", errormessage)
-
-    sys.excepthook = catchEmAll
 
     # %% -----------------------------------------------------------------------------------------------------------------
     Tk().withdraw()
@@ -203,10 +248,6 @@ def oasis():
 
     # Save File Location
     directory = askdirectory(title="Select directory to save the reordered resistivity and water-quality data", initialdir=res_folder)
-
-    # Record logging events to log file
-    logging.basicConfig(filename=directory+"\\OASIS_PREPROCESSING_LOGFILE.txt", format='%(asctime)s %(levelname)s %(message)s',
-                        datefmt='%m/%d/%Y %I:%M:%S %p', filemode='w', level=logging.INFO)
 
     # %% -----------------------------------------------------------------------------------------------------------------
     path = directory + r'/Raw_Data_Renamed'
@@ -472,21 +513,24 @@ def oasis():
     depth_filt(importfile, 'Depth', depthoffset, 0.01)
     rolling_avg(importfile, 'Depth', 'Depth_filt'.format(x), 20)
 
-    #%%
-    # Removing large jumps in altitude (commonly caused by bridges)
-    logging.info("Filtering altitude via percentage change\n")
-    importfile['Alt_pct']=importfile['Altitude'].pct_change()
-    importfile['Altitude_bandpass']=importfile['Altitude']
-    importfile['Altitude_bandpass'][importfile['Alt_pct']<np.nanpercentile(importfile['Alt_pct'],5)] = np.nan
-    importfile['Altitude_bandpass'][importfile['Alt_pct']>np.nanpercentile(importfile['Alt_pct'],95)] = np.nan
-    importfile['Altitude_bandpass']=importfile['Altitude_bandpass'].interpolate()
+#    #%%
+#    # Removing large jumps in altitude (commonly caused by bridges)
+#    logging.info("Filtering altitude via percentage change\n")
+#    importfile['Alt_pct']=importfile['Altitude'].pct_change()
+#    importfile['Altitude_bandpass']=importfile['Altitude']
+#    importfile['Altitude_bandpass'][importfile['Alt_pct']<np.nanpercentile(importfile['Alt_pct'],5)] = np.nan
+#    importfile['Altitude_bandpass'][importfile['Alt_pct']>np.nanpercentile(importfile['Alt_pct'],95)] = np.nan
+#    importfile['Altitude_bandpass']=importfile['Altitude_bandpass'].interpolate()
 
 
     #%%
     # Filtering Altitude via rolling median filter
     logging.info("Filtering altitude via rolling median filter\n")
-    rolling_avg(importfile, 'Altitude', 'Altitude_bandpass', 20)
+    rolling_median(importfile, 'Altitude', 'Altitude', 20)
 
+    #%%
+    #Rounding Altitude to the decimeter
+    importfile['Altitude_rollmed']=importfile['Altitude_rollmed'].round(1)
 
     #%%
     # Converting WGS 84 coordinates to UTM 15N coordiantes
@@ -512,6 +556,7 @@ def oasis():
     importfile["Cor_Dist"] = np.sqrt(np.square(importfile['X_UTM'] - importfile['X_UTM'].shift()) +
                                      np.square(importfile['Y_UTM'] - importfile['Y_UTM'].shift()))
     importfile["Cum_dist"] = importfile["Cor_Dist"].cumsum()
+    importfile["Cum_dist"][0]=0
 
     # %% -----------------------------------------------------------------------------------------------------------------
     #Replacing all NaNs with "*" and dropping geometry column
@@ -528,6 +573,7 @@ def oasis():
         tkMessageBox.showerror("FILE ERROR", "Could not save resistivity data to file.  Ensure filename is not open.")
         exit()
     print('Resistivity data exported')
+
 
     # %% -----------------------------------------------------------------------------------------------------------------
     # Preprocessing QW Data
@@ -745,13 +791,14 @@ def oasis():
     qwdata1['geometry'] = Ohm_buffer
     qwdata1 = qwdata1.set_geometry('geometry')
     resOhm = gp.sjoin(importfile,qwdata1,how='left', op='intersects')
-    resOhm[['Ohm_m_rollavg','Temp_C']] = resOhm[['Ohm_m_rollavg','Temp_C']].interpolate(limit=20)
+    resOhm[['Ohm_m_rollavg','Temp_C']] = resOhm[['Ohm_m_rollavg','Temp_C']].interpolate()
+    resOhm[['Ohm_m_rollavg','Temp_C']] = resOhm[['Ohm_m_rollavg','Temp_C']].fillna('bfill')
     resOhm['Temp_C'] = resOhm['Temp_C'].round(1)
 
     #%%
     # Populating the final fields
     resOhm['Ohm_m'] = resOhm['Ohm_m_rollavg']
-    resOhm['Final_Altitude'] = resOhm['Altitude_rollavg']
+    resOhm['Final_Altitude'] = resOhm['Altitude_rollmed']
     resOhm['Cor_Depth'] = resOhm['Depth_filt']
     resOhm['Final_Rho_1'] = resOhm['Rho 1_rollavg']
     resOhm['Final_Rho_2'] = resOhm['Rho 2_rollavg']
@@ -854,7 +901,7 @@ def oasis():
         #%%
         dr_raw=importfile[['File','UTC','Depth','Lat','Lon','Altitude','Cum_dist','In_n','In_p','V1_n','V1_p','V2_n','V2_p','V3_n','V3_p','V4_n','V4_p','V5_n','V5_p','V6_n','V6_p','V7_n','V7_p','V8_n','V8_p','V9_n','V9_p','V10_n','V10_p','Rho 1','Rho 2','Rho 3','Rho 4','Rho 5','Rho 6','Rho 7','Rho 8','Rho 9','Rho 10','C1','C2','P1','P2','P3','P4','P5','P6','P7','P8','P9','P10','P11']]
 
-        dr_post=importfile[['File','UTC','Depth_rollavg','Ohm_m','Lat','Lon','Altitude_rollavg','Cum_dist','Rho 1_rollavg','Rho 2_rollavg','Rho 3_rollavg','Rho 4_rollavg','Rho 5_rollavg','Rho 6_rollavg','Rho 7_rollavg','Rho 8_rollavg','Rho 9_rollavg','Rho 10_rollavg']]
+        dr_post=importfile[['File','UTC','Depth_rollavg','Ohm_m','Lat','Lon','Altitude_rollmed','Cum_dist','Rho 1_rollavg','Rho 2_rollavg','Rho 3_rollavg','Rho 4_rollavg','Rho 5_rollavg','Rho 6_rollavg','Rho 7_rollavg','Rho 8_rollavg','Rho 9_rollavg','Rho 10_rollavg']]
         #%%
         dr_raw['Iris_SN']=fieldValues[0]
         dr_raw['Cable_SN']=fieldValues[1]
@@ -882,6 +929,16 @@ def oasis():
 
 #%%
 #Bring up GUI and execute functions
+def catchEmAll(*exc_info):
+    errormessage = "".join(traceback.format_exception(*exc_info))
+    logging.critical("Uncaught error encountered: \n%s", errormessage)
+
+# Record logging events to log file
+logging.basicConfig(filename="\\OASIS_PREPROCESSING_LOGFILE.txt", format='%(asctime)s %(levelname)s %(message)s',
+                    datefmt='%m/%d/%Y %I:%M:%S %p', filemode='w', level=logging.INFO)
+
+sys.excepthook = catchEmAll
+
 ret_val = eg.msgbox("USGS Workbench Preprocessor and Data Release Utility")
 if ret_val is None: # User closed eg.msgbox
     sys.exit(0)
@@ -905,4 +962,4 @@ while 1:
         workbench_checks()
 
 #%%
-workbench_checks()
+
