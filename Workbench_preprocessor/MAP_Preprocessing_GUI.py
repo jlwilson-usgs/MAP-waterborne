@@ -36,8 +36,15 @@ import warnings
 
 #%%
 def workbench():
+    global out
     eg.msgbox("For this script to work, the final Rho columns must be named 'Final_Rho_1,Final_Rho_2,...,Final_Rho_n', Latitude and Longitude columns must be named 'Lat' and 'Lon', and the corrected distance and depth columns should be named 'Cor_Dist' and 'Cor_Depth', and the QW columns containing resisitivty values from the QW meter should be named 'Ohm_m'")
     infile = eg.fileopenbox(title="Select Oasis output csv file for processing")
+
+    try:
+        print(userRiverName)
+    except:
+        userRiverName = tkSimpleDialog.askstring("River Reach", "Please enter the name of the river reach...",
+                                             initialvalue="RIVER")
 
     try:
         data = pd.read_csv(infile)
@@ -88,16 +95,39 @@ def workbench():
         for x,y in reversed(zipped):
             out.insert(0,x,data['{}'.format(y)].values)
         eg.msgbox('File formatted')
-        outfile = eg.filesavebox(title="Save processed file as...",default='File_WorkbenchImport.csv',filetypes=['*.csv'])
+        outfile = eg.filesavebox(title="Save processed file as...",default='{}_WorkbenchImport.csv'.format(userRiverName),filetypes=['*.csv'])
         out.to_csv(outfile,index=False)
         eg.msgbox('Output csv file saved')
         eg.msgbox("Workbench Preprocessor Finished")
     except KeyError, e:
         eg.msgbox("Missing column",'The following column is missing in the input file: %s. Check to make sure all required columns are present.' % str(e))
+    #%%
+def workbench_checks():
+    # Line-to-Line Continuity Check
+    for x in range(1,len(out.Profile)):
+        if out.ix[x,"Profile"]==out.ix[x-1,"Profile"]:
+            pass
 
+        elif out.ix[x,"Profile"]!=out.ix[x-1,"Profile"]:
+            for s in range(1,11):
+                if np.abs((out.ix[x,"Rho_{}".format(s)]-out.ix[x-1,"Rho_{}".format(s)])/(out.ix[x,"Rho_{}".format(s)]+out.ix[x-1,"Rho_{}".format(s)])/2*100)>=50:
+                    tkMessageBox.showwarning("WARNING", "Large relative percent difference (>50%) in Rho {} on Line {} / row {}".format(s,out.ix[x,"Profile"],x+2))
+                    logging.warning("Line-to-Line Disconitnuity (>50%) in Rho {}".format(s))
+                else:
+                    pass
+            if np.abs((out.ix[x,"/Water_Res".format]-out.ix[x-1,"/Water_Res"])/(out.ix[x,"/Water_Res"]+out.ix[x-1,"/Water_Res"])/2*100)>=50:
+                    tkMessageBox.showwarning("WARNING", "Large relative percent difference (>50%) in Water_Res on Line {} / row {}".format(out.ix[x,"Profile"],x+2))
+                    logging.warning("Line-to-Line Disconitnuity (>50%) in Water_Res")
+            else:
+                pass
+
+
+        else:
+            break
 #%%
 def oasis():
     #%%
+    global userRiverName
     # Supressing depreciation warning from output
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore",category=DeprecationWarning)
@@ -119,7 +149,7 @@ def oasis():
     # Defining rolling average filter
     def rolling_avg(df, column1, column2, width):
         df[column1+'_rollavg']=df[column2]
-        df[column1+'_rollavg']= pd.rolling_mean(df[column1+'_rollavg'],window=width)
+        df[column1+'_rollavg']= df[column1+'_rollavg'].rolling(width, min_periods=1).mean()
 
     def haversine(lon1, lat1, lon2, lat2):
         """
@@ -845,7 +875,10 @@ def oasis():
         dr_post.to_csv(post, index=False)
         dr_raw.to_csv(raw, index=False)
     else:
-       sys.exit(0)
+       if choice=="Oasis Preprocessor":
+           sys.exit(0)
+       else:
+           pass
 
 #%%
 #Bring up GUI and execute functions
@@ -865,8 +898,11 @@ while 1:
         oasis()
     elif choice=="Workbench Preprocessor":
         workbench()
+        workbench_checks()
     elif choice=="Oasis/Workbench Preprocessor":
         oasis()
         workbench()
+        workbench_checks()
 
-
+#%%
+workbench_checks()
