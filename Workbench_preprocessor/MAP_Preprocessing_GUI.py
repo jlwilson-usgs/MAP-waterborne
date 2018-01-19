@@ -297,6 +297,7 @@ def oasis():
         temp = pd.read_csv(filename, sep=';').reset_index()
         temp.columns = colNames
 
+
         # Check if survey is bad (500m or 100 point threshold)
         if len(temp) < 100:
             excludeSurveys = excludeSurveys.append(pd.DataFrame([[filename, str(len(temp))]],
@@ -407,11 +408,42 @@ def oasis():
             temp.columns = colNames
             temp = temp.iloc[::-1]  # Reversal line
             temp["Filename"] = reorderedSubset.loc[i, "NewFilename"]
+            bname = os.path.splitext(filename)[0]
+
+            header_size=26
+            num_data_bytes=14
+
+            with open('{}.bin'.format(bname),'rb') as fin:
+                header = fin.read(header_size)
+                data_str = fin.read(num_data_bytes)
+                data = data_str.split()[0]
+
+            temp['Date']=data
+
+            temp['Date'] = pd.to_datetime(temp['Date'])
+            temp['Date'] = temp['Date'].dt.dayofyear
+
         # Otherwise, write file to master file normally
         else:
             temp = pd.read_csv(filename, sep=';|,', engine='python').reset_index()
             temp.columns = colNames
             temp["Filename"] = reorderedSubset.loc[i, "NewFilename"]
+
+            bname = os.path.splitext(filename)[0]
+
+            header_size=26
+            num_data_bytes=14
+
+            with open('{}.bin'.format(bname),'rb') as fin:
+                header = fin.read(header_size)
+                data_str = fin.read(num_data_bytes)
+                data = data_str.split()[0]
+
+            temp['Date']=data
+
+            temp['Date'] = pd.to_datetime(temp['Date'])
+            temp['Date'] = temp['Date'].dt.dayofyear
+
         # Attempt to remove overlapping lines
         # Creates a box with the corners being the end of the previous line and start of next line
         # Removes any of the next line within that box
@@ -917,9 +949,9 @@ def oasis():
                 break
 
         #%%
-        dr_raw=importfile[['File','UTC','Depth','Lat','Lon','Altitude','Cum_dist','In_n','In_p','V1_n','V1_p','V2_n','V2_p','V3_n','V3_p','V4_n','V4_p','V5_n','V5_p','V6_n','V6_p','V7_n','V7_p','V8_n','V8_p','V9_n','V9_p','V10_n','V10_p','Rho 1','Rho 2','Rho 3','Rho 4','Rho 5','Rho 6','Rho 7','Rho 8','Rho 9','Rho 10','C1','C2','P1','P2','P3','P4','P5','P6','P7','P8','P9','P10','P11']]
+        dr_raw=importfile[['File','Date','UTC','Depth','Lat','Lon','Altitude','Cum_dist','In_n','In_p','V1_n','V1_p','V2_n','V2_p','V3_n','V3_p','V4_n','V4_p','V5_n','V5_p','V6_n','V6_p','V7_n','V7_p','V8_n','V8_p','V9_n','V9_p','V10_n','V10_p','Rho 1','Rho 2','Rho 3','Rho 4','Rho 5','Rho 6','Rho 7','Rho 8','Rho 9','Rho 10','C1','C2','P1','P2','P3','P4','P5','P6','P7','P8','P9','P10','P11']]
 
-        dr_post=importfile[['File','UTC','Depth_rollavg','Ohm_m','Lat','Lon','Altitude_rollmed','Cum_dist','Rho 1_rollavg','Rho 2_rollavg','Rho 3_rollavg','Rho 4_rollavg','Rho 5_rollavg','Rho 6_rollavg','Rho 7_rollavg','Rho 8_rollavg','Rho 9_rollavg','Rho 10_rollavg']]
+        dr_post=importfile[['File','Date','UTC','Depth_rollavg','Ohm_m','Lat','Lon','Altitude_rollmed','Cum_dist','Rho 1_rollavg','Rho 2_rollavg','Rho 3_rollavg','Rho 4_rollavg','Rho 5_rollavg','Rho 6_rollavg','Rho 7_rollavg','Rho 8_rollavg','Rho 9_rollavg','Rho 10_rollavg']]
         #%%
         dr_raw['Iris_SN']=fieldValues[0]
         dr_raw['Cable_SN']=fieldValues[1]
@@ -980,6 +1012,4 @@ while 1:
         oasis()
         workbench()
         workbench_checks()
-
-#%%
 
