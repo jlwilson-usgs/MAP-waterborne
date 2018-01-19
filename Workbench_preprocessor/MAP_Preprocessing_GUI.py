@@ -57,9 +57,9 @@ def workbench():
 
     try:
         data = pd.read_csv(infile)
-        eg.msgbox('Oasis file read')
+        logging.info("Oasis file read\n")
     except:
-        eg.msgbox('Oasis file not read')
+        logging.info("Oasis file not read\n")
 
     try:
         data['File_w']=data['Line'].str.split('L',1)
@@ -73,7 +73,7 @@ def workbench():
             data['File']=data['File'].astype('int')
 
         except KeyError,e:
-            eg.msgbox('The following column is missing in the input file: %s. Check to make sure all required columns are present.' % str(e))
+            logging.info('The following column is missing in the input file: %s. Check to make sure all required columns are present.\n' % str(e))
 
     out = pd.DataFrame()
 
@@ -103,16 +103,16 @@ def workbench():
     try:
         for x,y in reversed(zipped):
             out.insert(0,x,data['{}'.format(y)].values)
-        eg.msgbox('File formatted')
+        logging.info("File formatted\n")
         outfile = eg.filesavebox(title="Save processed file as...",default='{}_WorkbenchImport.csv'.format(userRiverName),filetypes=['*.csv'])
         out.to_csv(outfile,index=False)
-        eg.msgbox('Output csv file saved')
-        eg.msgbox("Workbench Preprocessor Finished")
+        logging.info("Output csv file saved\n")
+        logging.info("Workbench Preprocessor Finished\n")
     except KeyError, e:
-        eg.msgbox("Missing column",'The following column is missing in the input file: %s. Check to make sure all required columns are present.' % str(e))
+        logging.info("Missing column",'The following column is missing in the input file: %s. Check to make sure all required columns are present.\n' % str(e))
     #%%
 def workbench_checks():
-    for x in range(1,len(out.Profile)):
+    for x in range(0,len(out.Profile)):
 
         # Line-to-Line Continuity Check
         if out.ix[x,"Profile"]==out.ix[x-1,"Profile"]:
@@ -132,9 +132,12 @@ def workbench_checks():
                 pass
         else:
             pass
+    logging.info("Continuity check finished\n")
 
-    # Line-to-Line Min/Max Check
-    mult=2
+# Line-to-Line Min/Max Check
+    mult=2 #Mulitiple of the inner quartile range (1st and 3rd) that defines outliers
+
+    # Resistivity checks
     for x in out['Profile'].unique():
         for s in range(1,11):
             if np.max(out['Rho_{}'.format(s)][out['Profile']==x])>mult*(scipy.stats.mstats.mquantiles(out['Rho_{}'.format(s)][out['Profile']==x])[2]):
@@ -146,7 +149,8 @@ def workbench_checks():
             else:
                 pass
 
-            # QW checks
+
+    # QW checks
     for x in out['Profile'].unique():
         if np.max(out['/Water_Res'][out['Profile']==x])>mult*(scipy.stats.mstats.mquantiles(out['/Water_Res'][out['Profile']==x])[2]):
             tkMessageBox.showwarning("WARNING", "Maximum Water_Res in row {} larger than {} times the 3rd quantile of Line {}".format(out.index[out['/Water_Res']==np.max(out['/Water_Res'][out['Profile']==x])][0]+2,mult,x))
@@ -157,7 +161,7 @@ def workbench_checks():
         else:
             pass
 
-        # Altitude checks
+    # Altitude checks
         if np.max(out['Final_Altitude'][out['Profile']==x])>mult*(scipy.stats.mstats.mquantiles(out['Final_Altitude'][out['Profile']==x])[2]):
             tkMessageBox.showwarning("WARNING", "Maximum Altitude in row {} larger than {} times the 3rd quantile of Line {}".format(out.index[out['Final_Altitude']==np.max(out['Final_Altitude'][out['Profile']==x])][0]+2,mult,x))
             logging.warning('Maximum Altitude in row {} larger than {} times the 3rd quartile of Line {}'.format(out.index[out['Final_Altitude']==np.max(out['Final_Altitude'][out['Profile']==x])][0]+2,mult,x))
@@ -167,15 +171,27 @@ def workbench_checks():
         else:
             pass
 
+    logging.info("Min/max check finished\n")
+
 # Blank Cells Check
+    if out.isnull().values.any():
+        nulls = out.isnull()
+        for t in range(0,len(out.columns)):
+            for x in range(0,len(out.Profile)):
+                if nulls.ix[x,t]:
+                    tkMessageBox.showwarning("WARNING", "Blank {} cell in row {}".format(out.columns.values[t],x+2))
+                    logging.warning('Blank {} cell in row {}'.format(out.columns.values[t],x+2))
+                else:
+                    pass
+    else:
+        pass
+    logging.info("Blank cell check finished\n")
 
 #%%
 def oasis():
     #%%
     global userRiverName, importfile, importfile1
     # Supressing depreciation warning from output
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore",category=DeprecationWarning)
 
     #%%
     # Defining bandpass filter to filter resistivity data channels
@@ -555,8 +571,10 @@ def oasis():
     logging.info("Calculating distance from UTM coordinates\n")
     importfile["Cor_Dist"] = np.sqrt(np.square(importfile['X_UTM'] - importfile['X_UTM'].shift()) +
                                      np.square(importfile['Y_UTM'] - importfile['Y_UTM'].shift()))
+#    importfile["Cor_Dist"][0]=0.00
     importfile["Cum_dist"] = importfile["Cor_Dist"].cumsum()
-    importfile["Cum_dist"][0]=0
+    importfile["Cum_dist"][0]=0.00
+
 
     # %% -----------------------------------------------------------------------------------------------------------------
     #Replacing all NaNs with "*" and dropping geometry column
@@ -792,7 +810,7 @@ def oasis():
     qwdata1 = qwdata1.set_geometry('geometry')
     resOhm = gp.sjoin(importfile,qwdata1,how='left', op='intersects')
     resOhm[['Ohm_m_rollavg','Temp_C']] = resOhm[['Ohm_m_rollavg','Temp_C']].interpolate()
-    resOhm[['Ohm_m_rollavg','Temp_C']] = resOhm[['Ohm_m_rollavg','Temp_C']].fillna('bfill')
+    resOhm[['Ohm_m_rollavg','Temp_C']] = resOhm[['Ohm_m_rollavg','Temp_C']].fillna(method='bfill')
     resOhm['Temp_C'] = resOhm['Temp_C'].round(1)
 
     #%%
@@ -933,6 +951,8 @@ def catchEmAll(*exc_info):
     errormessage = "".join(traceback.format_exception(*exc_info))
     logging.critical("Uncaught error encountered: \n%s", errormessage)
 
+with warnings.catch_warnings():
+    warnings.filterwarnings("ignore",category=DeprecationWarning)
 # Record logging events to log file
 logging.basicConfig(filename="\\OASIS_PREPROCESSING_LOGFILE.txt", format='%(asctime)s %(levelname)s %(message)s',
                     datefmt='%m/%d/%Y %I:%M:%S %p', filemode='w', level=logging.INFO)
