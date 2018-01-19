@@ -603,7 +603,7 @@ def oasis():
     logging.info("Calculating distance from UTM coordinates\n")
     importfile["Cor_Dist"] = np.sqrt(np.square(importfile['X_UTM'] - importfile['X_UTM'].shift()) +
                                      np.square(importfile['Y_UTM'] - importfile['Y_UTM'].shift()))
-#    importfile["Cor_Dist"][0]=0.00
+    importfile["Cor_Dist"][0]=0.00
     importfile["Cum_dist"] = importfile["Cor_Dist"].cumsum()
     importfile["Cum_dist"][0]=0.00
 
