@@ -49,12 +49,15 @@ def workbench():
     global out
     eg.msgbox("For this script to work, the final Rho columns must be named 'Final_Rho_1,Final_Rho_2,...,Final_Rho_n', Latitude and Longitude columns must be named 'Lat' and 'Lon', and the corrected distance and depth columns should be named 'Cor_Dist' and 'Cor_Depth', and the QW columns containing resisitivty values from the QW meter should be named 'Ohm_m'")
     infile = eg.fileopenbox(title="Select Oasis output csv file for processing")
-
+    """
     try:
         print(userRiverName)
     except:
         userRiverName = tkSimpleDialog.askstring("River Reach", "Please enter the name of the river reach...", initialvalue="RIVER")
-
+    """
+    root = Tk()
+    root.withdraw()
+    userRiverName = tkSimpleDialog.askstring("River Reach", "Please enter the name of the river reach...", initialvalue="RIVER")
     try:
         data = pd.read_csv(infile)
         logging.info("Oasis file read\n")
@@ -112,8 +115,7 @@ def workbench():
         logging.info("Missing column",'The following column is missing in the input file: %s. Check to make sure all required columns are present.\n' % str(e))
     #%%
 def workbench_checks():
-    for x in range(0,len(out.Profile)):
-
+    for x in range(1,len(out.Profile)):
         # Line-to-Line Continuity Check
         if out.ix[x,"Profile"]==out.ix[x-1,"Profile"]:
             pass
@@ -186,6 +188,8 @@ def workbench_checks():
     else:
         pass
     logging.info("Blank cell check finished\n")
+    # Exit
+    sys.exit(0)
 
 #%%
 def oasis():
@@ -332,51 +336,59 @@ def oasis():
     excludeSurveys.to_csv(path + "\\EXCLUDED_SURVEYS_RES.txt", index=False)
 
     # Reorganize files based upon their location to one another
-    reorderedSubset = pd.DataFrame(columns=["StartLat", "EndLat", "StartLong", "EndLong", "Filename", "Distance", "Reverse"])
-    # Pick starting survey as one where start is farthest away from finish
-    subset["Distance"] = 0.00
-    for i, f in enumerate(subset.Filename):
-        startLat = subset.loc[i, "StartLat"]
-        startLong = subset.loc[i, "StartLong"]
-        dist = 0
-        # Find the greatest distance between all lines
-        for i2, f2 in enumerate(subset.Filename):
-            endLat = subset.loc[i2, "EndLat"]
-            endLong = subset.loc[i2, "EndLong"]
-            dist = max(dist, haversine(startLong, startLat, endLong, endLat))
-        subset.at[i, "Distance"] = dist
-    # Start survey is one with greatest starting distance from any survey
-    reorderedSubset = reorderedSubset.append(subset.loc[subset["Distance"].idxmax(), :]).reset_index(drop=True)
-    reorderedSubset.loc[len(reorderedSubset) - 1, "Reverse"] = False  # First line shouldn't need reversal
-    subset.drop([subset["Distance"].idxmax()], inplace=True)
-    subset.reset_index(drop=True, inplace=True)
-
-    # Reorder remaining surveys based on distance from the end of previous survey
-    while len(subset) > 0:
-        endLat = reorderedSubset.loc[len(reorderedSubset)-1, "EndLat"]
-        endLong = reorderedSubset.loc[len(reorderedSubset)-1, "EndLong"]
-        subset["Distance"] = 999999999.00
-        subset["ReverseDistance"] = 999999999.00
-        # The next line "starts" closest to the "end" of the previous line
-        for i2, f2 in enumerate(subset.Filename):
-            startLat = subset.loc[i2, "StartLat"]
-            startLong = subset.loc[i2, "StartLong"]
-            subset.at[i2, "Distance"] = haversine(startLong, startLat, endLong, endLat)
-            subset.at[i2, "ReverseDistance"] = haversine(subset.loc[i2, "EndLong"], subset.loc[i2, "EndLat"], endLong, endLat)
-
-        # Check to see if next survey section is reversed
-        if min(subset["Distance"]) <= min(subset["ReverseDistance"]):
-            reorderedSubset = reorderedSubset.append(subset.loc[subset["Distance"].idxmin(), :]).reset_index(drop=True)
-            reorderedSubset.loc[len(reorderedSubset) - 1, "Reverse"] = False
-        else:
-            reorderedSubset = reorderedSubset.append(subset.loc[subset["ReverseDistance"].idxmin(), :]).reset_index(drop=True)
-            reorderedSubset.loc[len(reorderedSubset)-1, "Reverse"] = True
-        subset.drop([subset["Distance"].idxmin()], inplace=True)
+    # ONLY IF MORE THAN TWO SURVEYS FOUND
+    if len(subset) > 2:
+        reorderedSubset = pd.DataFrame(columns=["StartLat", "EndLat", "StartLong", "EndLong", "Filename", "Distance", "Reverse"])
+        # Pick starting survey as one where start is farthest away from finish
+        subset["Distance"] = 0.00
+        for i, f in enumerate(subset.Filename):
+            startLat = subset.loc[i, "StartLat"]
+            startLong = subset.loc[i, "StartLong"]
+            dist = 0
+            # Find the greatest distance between all lines
+            for i2, f2 in enumerate(subset.Filename):
+                endLat = subset.loc[i2, "EndLat"]
+                endLong = subset.loc[i2, "EndLong"]
+                dist = max(dist, haversine(startLong, startLat, endLong, endLat))
+            subset.at[i, "Distance"] = dist
+        # Start survey is one with greatest starting distance from any survey
+        reorderedSubset = reorderedSubset.append(subset.loc[subset["Distance"].idxmax(), :]).reset_index(drop=True)
+        reorderedSubset.loc[len(reorderedSubset) - 1, "Reverse"] = False  # First line shouldn't need reversal
+        subset.drop([subset["Distance"].idxmax()], inplace=True)
         subset.reset_index(drop=True, inplace=True)
-    reorderedSubset.loc[0, "Reverse"] = False  # First line shouldn't need reversal (need to restate)
+
+        # Reorder remaining surveys based on distance from the end of previous survey
+        while len(subset) > 0:
+            endLat = reorderedSubset.loc[len(reorderedSubset)-1, "EndLat"]
+            endLong = reorderedSubset.loc[len(reorderedSubset)-1, "EndLong"]
+            subset["Distance"] = 999999999.00
+            subset["ReverseDistance"] = 999999999.00
+            # The next line "starts" closest to the "end" of the previous line
+            for i2, f2 in enumerate(subset.Filename):
+                startLat = subset.loc[i2, "StartLat"]
+                startLong = subset.loc[i2, "StartLong"]
+                subset.at[i2, "Distance"] = haversine(startLong, startLat, endLong, endLat)
+                subset.at[i2, "ReverseDistance"] = haversine(subset.loc[i2, "EndLong"], subset.loc[i2, "EndLat"], endLong, endLat)
+
+            # Check to see if next survey section is reversed
+            if min(subset["Distance"]) <= min(subset["ReverseDistance"]):
+                reorderedSubset = reorderedSubset.append(subset.loc[subset["Distance"].idxmin(), :]).reset_index(drop=True)
+                reorderedSubset.loc[len(reorderedSubset) - 1, "Reverse"] = False
+            else:
+                reorderedSubset = reorderedSubset.append(subset.loc[subset["ReverseDistance"].idxmin(), :]).reset_index(drop=True)
+                reorderedSubset.loc[len(reorderedSubset)-1, "Reverse"] = True
+            subset.drop([subset["Distance"].idxmin()], inplace=True)
+            subset.reset_index(drop=True, inplace=True)
+        reorderedSubset.loc[0, "Reverse"] = False  # First line shouldn't need reversal (need to restate)
+        reorderedSubset.drop(["StartLat", "EndLat", "StartLong", "EndLong", "Distance", "ReverseDistance"], axis=1,
+                             inplace=True)
+    else:
+        # Otherwise, we don't need to reorder
+        reorderedSubset = subset
+        reorderedSubset.drop(["StartLat", "EndLat", "StartLong", "EndLong"], axis=1, inplace=True)
+        reorderedSubset["Reverse"] = False
 
     # Create new filenames for surveys based on their order and export directory to csv file
-    reorderedSubset.drop(["StartLat", "EndLat", "StartLong", "EndLong", "Distance", "ReverseDistance"], axis=1, inplace=True)
     reorderedSubset["NewFilename"] = reorderedSubset.index + 1
     reorderedSubset["NewFilename"] = directory + "\\" + userRiverName + "_" + reorderedSubset["NewFilename"].apply(lambda k: str(k).zfill(3)) + ".txt"
     logging.info("Writing renamed resistivity directory to file\n")
@@ -670,49 +682,58 @@ def oasis():
     logging.info("Writing excluded surveys to file\n")
     wqexcludeSurveys.to_csv(path + r"\\EXCLUDED_SURVEYS_WQ.txt", index=False)
 
+
     # Reorganize files based upon their location to one another
-    wqreorderedSubset = pd.DataFrame(columns=["StartLat", "EndLat", "StartLong", "EndLong", "Filename", "Distance", "Reverse"])
-    # Pick starting survey as one where start is closest to the resistivity start
-    wqsubset["Distance"] = 0.00
-    startLat = importfile1.loc[0, "Lat"]
-    startLong = importfile1.loc[0, "Lon"]
-    for i, f in enumerate(wqsubset.Filename):
-        endLat = wqsubset.loc[i, "EndLat"]
-        endLong = wqsubset.loc[i, "EndLong"]
-        dist = haversine(startLong, startLat, endLong, endLat)
-        wqsubset.at[i, "Distance"] = dist
+    # ONLY IF MORE THAN TWO SURVEYS FOUND
+    if len(wqsubset) > 2:
+        wqreorderedSubset = pd.DataFrame(columns=["StartLat", "EndLat", "StartLong", "EndLong", "Filename", "Distance", "Reverse"])
+        # Pick starting survey as one where start is closest to the resistivity start
+        wqsubset["Distance"] = 0.00
+        startLat = importfile1.loc[0, "Lat"]
+        startLong = importfile1.loc[0, "Lon"]
+        for i, f in enumerate(wqsubset.Filename):
+            endLat = wqsubset.loc[i, "EndLat"]
+            endLong = wqsubset.loc[i, "EndLong"]
+            dist = haversine(startLong, startLat, endLong, endLat)
+            wqsubset.at[i, "Distance"] = dist
 
-    # Start survey is one with shortest starting distance from the first resistivity survey
-    wqreorderedSubset = wqreorderedSubset.append(wqsubset.loc[wqsubset["Distance"].idxmin(), :]).reset_index(drop=True)
-    wqreorderedSubset["Reverse"] = False  # First line shouldn't need reversal
-    wqsubset.drop([wqsubset["Distance"].idxmin()], inplace=True)
-    wqsubset.reset_index(drop=True, inplace=True)
-
-    # Reorder remaining surveys based on distance from the end of previous survey
-    while len(wqsubset) > 0:
-        endLat = wqreorderedSubset.loc[len(wqreorderedSubset)-1, "EndLat"]
-        endLong = wqreorderedSubset.loc[len(wqreorderedSubset)-1, "EndLong"]
-        wqsubset["Distance"] = 999999999.00
-        wqsubset["ReverseDistance"] = 999999999.00
-        # The next line "starts" closest to the "end" of the previous line
-        for i2, f2 in enumerate(wqsubset.Filename):
-            startLat = wqsubset.loc[i2, "StartLat"]
-            startLong = wqsubset.loc[i2, "StartLong"]
-            wqsubset.at[i2, "Distance"] = haversine(startLong, startLat, endLong, endLat)
-            wqsubset.at[i2, "ReverseDistance"] = haversine(wqsubset.loc[i2, "EndLong"], wqsubset.loc[i2, "EndLat"], endLong, endLat)
-        # Check to see if next survey section is reversed
-        if min(wqsubset["Distance"]) <= min(wqsubset["ReverseDistance"]):
-            wqreorderedSubset = wqreorderedSubset.append(wqsubset.loc[wqsubset["Distance"].idxmin(), :]).reset_index(drop=True)
-            wqreorderedSubset.loc[len(wqreorderedSubset) - 1, "Reverse"] = False
-        else:
-            wqreorderedSubset = wqreorderedSubset.append(wqsubset.loc[wqsubset["ReverseDistance"].idxmin(), :]).reset_index(drop=True)
-            wqreorderedSubset.loc[len(wqreorderedSubset)-1, "Reverse"] = True
+        # Start survey is one with shortest starting distance from the first resistivity survey
+        wqreorderedSubset = wqreorderedSubset.append(wqsubset.loc[wqsubset["Distance"].idxmin(), :]).reset_index(drop=True)
+        wqreorderedSubset["Reverse"] = False  # First line shouldn't need reversal
         wqsubset.drop([wqsubset["Distance"].idxmin()], inplace=True)
         wqsubset.reset_index(drop=True, inplace=True)
-    wqreorderedSubset.loc[0, "Reverse"] = False  # First line shouldn't need reversal (need to restate)
+
+        # Reorder remaining surveys based on distance from the end of previous survey
+        while len(wqsubset) > 0:
+            endLat = wqreorderedSubset.loc[len(wqreorderedSubset)-1, "EndLat"]
+            endLong = wqreorderedSubset.loc[len(wqreorderedSubset)-1, "EndLong"]
+            wqsubset["Distance"] = 999999999.00
+            wqsubset["ReverseDistance"] = 999999999.00
+            # The next line "starts" closest to the "end" of the previous line
+            for i2, f2 in enumerate(wqsubset.Filename):
+                startLat = wqsubset.loc[i2, "StartLat"]
+                startLong = wqsubset.loc[i2, "StartLong"]
+                wqsubset.at[i2, "Distance"] = haversine(startLong, startLat, endLong, endLat)
+                wqsubset.at[i2, "ReverseDistance"] = haversine(wqsubset.loc[i2, "EndLong"], wqsubset.loc[i2, "EndLat"], endLong, endLat)
+            # Check to see if next survey section is reversed
+            if min(wqsubset["Distance"]) <= min(wqsubset["ReverseDistance"]):
+                wqreorderedSubset = wqreorderedSubset.append(wqsubset.loc[wqsubset["Distance"].idxmin(), :]).reset_index(drop=True)
+                wqreorderedSubset.loc[len(wqreorderedSubset) - 1, "Reverse"] = False
+            else:
+                wqreorderedSubset = wqreorderedSubset.append(wqsubset.loc[wqsubset["ReverseDistance"].idxmin(), :]).reset_index(drop=True)
+                wqreorderedSubset.loc[len(wqreorderedSubset)-1, "Reverse"] = True
+            wqsubset.drop([wqsubset["Distance"].idxmin()], inplace=True)
+            wqsubset.reset_index(drop=True, inplace=True)
+        wqreorderedSubset.loc[0, "Reverse"] = False  # First line shouldn't need reversal (need to restate)
+        wqreorderedSubset.drop(["StartLat", "EndLat", "StartLong", "EndLong", "Distance", "ReverseDistance"], axis=1,
+                               inplace=True)
+
+    else:
+        wqreorderedSubset = wqsubset
+        wqreorderedSubset.drop(["StartLat", "EndLat", "StartLong", "EndLong"], axis=1, inplace=True)
+        wqreorderedSubset["Reverse"] = False
 
     # Create new filenames for surveys based on their order and export directory to csv file
-    wqreorderedSubset.drop(["StartLat", "EndLat", "StartLong", "EndLong", "Distance", "ReverseDistance"], axis=1, inplace=True)
     wqreorderedSubset["NewFilename"] = wqreorderedSubset.index + 1
     wqreorderedSubset["NewFilename"] = directory + "\\" + userRiverName + "_" + wqreorderedSubset["NewFilename"].apply(lambda k: str(k).zfill(3)) + "_WQ.csv"
     logging.info("Writing renamed water quality directory to file\n")
@@ -727,7 +748,7 @@ def oasis():
     # %% -----------------------------------------------------------------------------------------------------------------
     # Import the water quality data based on the reordered index
     print('Importing water quality data')
-    wqCols = ["Date", "Time", "°C", "mmHg", "DO %", "SPC-uS/cm", "C-uS/cm", "ohm-cm", "pH", "NH4-N mg/L", "NO3-N mg/L",
+    wqCols = ["Date", "Time", "°C", "mmHg", "DO %", "SPC-uS/cm", "ohm-cm", "pH", "NH4-N mg/L", "NO3-N mg/L",
               "Cl mg/L", "FNU", "TSS mg/L", "DEP m", "ALT m", "Lat", "Lon"]
     qwdata = pd.DataFrame(columns=wqCols)
     for i, filename in enumerate(wqreorderedSubset["Filename"]):
@@ -989,7 +1010,7 @@ with warnings.catch_warnings():
 logging.basicConfig(filename="\\OASIS_PREPROCESSING_LOGFILE.txt", format='%(asctime)s %(levelname)s %(message)s',
                     datefmt='%m/%d/%Y %I:%M:%S %p', filemode='w', level=logging.INFO)
 
-sys.excepthook = catchEmAll
+# sys.excepthook = catchEmAll
 
 ret_val = eg.msgbox("USGS Workbench Preprocessor and Data Release Utility")
 if ret_val is None: # User closed eg.msgbox
