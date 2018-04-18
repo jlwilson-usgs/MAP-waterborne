@@ -4,7 +4,7 @@
 # In[31]:
 
 """
-# Last Revised 1/18/2018
+# Last Revised 4/18/2018
 #
 # Jordan Wilson
 # USGS
@@ -332,8 +332,9 @@ def oasis():
                                             columns=["StartLat", "EndLat", "StartLong", "EndLong", "Filename"])).reset_index(drop=True)
 
     # Track files that were removed due to their length
-    logging.info("Writing excluded surveys to file\n")
-    excludeSurveys.to_csv(path + "\\EXCLUDED_SURVEYS_RES.txt", index=False)
+    if len(excludeSurveys) > 0:
+        logging.info("Writing excluded surveys to file\n")
+        excludeSurveys.to_csv(path + "\\EXCLUDED_SURVEYS_RES.txt", index=False)
 
     # Reorganize files based upon their location to one another
     # ONLY IF MORE THAN TWO SURVEYS FOUND
@@ -639,7 +640,6 @@ def oasis():
 
     # %% -----------------------------------------------------------------------------------------------------------------
     # Preprocessing QW Data
-
     # Grab starting and ending points of each survey to reorder
     # NOTE: THIS ASSUMES CONTINUITY WITHIN SURVEY - NO TURNING BOAT AROUND WITHIN SURVEY LINE
     wqsubset = pd.DataFrame(columns=["StartLat", "EndLat", "StartLong", "EndLong", "Filename"])
@@ -831,6 +831,7 @@ def oasis():
 
     # %% -----------------------------------------------------------------------------------------------------------------
     # Adding File column to process data in Oasis in chunks
+    qwdata.reset_index(inplace=True)
     qwdata['File']="1"
     j=1
     for x in range(1,len(qwdata.Filename)):
@@ -1007,14 +1008,14 @@ def catchEmAll(*exc_info):
 with warnings.catch_warnings():
     warnings.filterwarnings("ignore",category=DeprecationWarning)
 # Record logging events to log file
-logging.basicConfig(filename="\\OASIS_PREPROCESSING_LOGFILE.txt", format='%(asctime)s %(levelname)s %(message)s',
+logging.basicConfig(filename=os.getcwd()+"\\PREPROCESSING_LOGFILE.txt", format='%(asctime)s %(levelname)s %(message)s',
                     datefmt='%m/%d/%Y %I:%M:%S %p', filemode='w', level=logging.INFO)
 
-# sys.excepthook = catchEmAll
+sys.excepthook = catchEmAll
 
-ret_val = eg.msgbox("USGS Workbench Preprocessor and Data Release Utility")
-if ret_val is None: # User closed eg.msgbox
-    sys.exit(0)
+# ret_val = eg.msgbox("USGS Workbench Preprocessor and Data Release Utility")
+# if ret_val is None: # User closed eg.msgbox
+#     sys.exit(0)
 
 title ="USGS Oasis/Workbench Preprocessor and Data Release Utility"
 msg = "Choose which utility you would like to use"
@@ -1033,4 +1034,3 @@ while 1:
         oasis()
         workbench()
         workbench_checks()
-
