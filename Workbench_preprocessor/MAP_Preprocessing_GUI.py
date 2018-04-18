@@ -29,6 +29,7 @@ from Tkinter import Tk
 from tkFileDialog import asksaveasfilename
 from tkFileDialog import askdirectory
 from tkFileDialog import askopenfilename
+from tkFileDialog import askopenfilenames
 import tkMessageBox
 import tkSimpleDialog
 import os
@@ -47,22 +48,37 @@ import scipy.stats
 #%%
 def workbench():
     global out
-    eg.msgbox("For this script to work, the final Rho columns must be named 'Final_Rho_1,Final_Rho_2,...,Final_Rho_n', Latitude and Longitude columns must be named 'Lat' and 'Lon', and the corrected distance and depth columns should be named 'Cor_Dist' and 'Cor_Depth', and the QW columns containing resisitivty values from the QW meter should be named 'Ohm_m'")
-    infile = eg.fileopenbox(title="Select Oasis output csv file for processing")
-    """
-    try:
-        print(userRiverName)
-    except:
-        userRiverName = tkSimpleDialog.askstring("River Reach", "Please enter the name of the river reach...", initialvalue="RIVER")
-    """
+    eg.msgbox("For this script to work, the final Rho columns must be named 'Final_Rho_1,Final_Rho_2,...,Final_Rho_n', "
+              "Latitude and Longitude columns must be named 'Lat' and 'Lon', and the corrected distance and depth "
+              "columns should be named 'Cor_Dist' and 'Cor_Depth', and the QW columns containing resisitivty values "
+              "from the QW meter should be named 'Ohm_m'")
     root = Tk()
     root.withdraw()
-    userRiverName = tkSimpleDialog.askstring("River Reach", "Please enter the name of the river reach...", initialvalue="RIVER")
+    infile = askopenfilename(title="Select Oasis output csv file for processing",
+                             filetypes=(("text files", "*.csv"), ("all files", "*.*")))
+    if not infile:
+        logging.info("Process terminated by user\n")
+        exit()
+    else:
+        try:
+            os.path.dirname(infile)
+        except IndexError:
+            tkMessageBox.showerror("FILE ERROR", "Invalid file name")
+            logging.error("Invalid Oasis file name or no Oasis output file selected for workbench processor\n")
+            exit()
+
+    userRiverName = tkSimpleDialog.askstring("River Reach", "Please enter the name of the river reach...",
+                                             initialvalue="RIVER")
+    if not userRiverName:
+        logging.info("Process terminated by user\n")
+        exit()
+    data = pd.read_csv(infile)
     try:
         data = pd.read_csv(infile)
         logging.info("Oasis file read\n")
     except:
-        logging.info("Oasis file not read\n")
+        logging.info("Oasis file not read, invalid file selected\n")
+        exit()
 
     try:
         data['File_w']=data['Line'].str.split('L',1)
@@ -71,7 +87,6 @@ def workbench():
         data['File']=data['File'].astype('int')
 
     except:
-
         try:
             data['File']=data['File'].astype('int')
 
@@ -107,7 +122,13 @@ def workbench():
         for x,y in reversed(zipped):
             out.insert(0,x,data['{}'.format(y)].values)
         logging.info("File formatted\n")
-        outfile = eg.filesavebox(title="Save processed file as...",default='{}_WorkbenchImport.csv'.format(userRiverName),filetypes=['*.csv'])
+        outfile = asksaveasfilename(title="Save processed file as...",
+                                    initialfile='{}_WorkbenchImport.csv'.format(userRiverName),
+                                    filetypes=(("csv files", "*.csv"), ("All files", "*.*")),
+                                    initialdir=os.path.dirname(infile))
+        if not outfile:
+            logging.info("Process terminated by user\n")
+            exit()
         out.to_csv(outfile,index=False)
         logging.info("Output csv file saved\n")
         logging.info("Workbench Preprocessor Finished\n")
@@ -244,30 +265,47 @@ def oasis():
 
     userRiverName = tkSimpleDialog.askstring("River Reach", "Please enter the name of the river reach...",
                                              initialvalue="RIVER")
+    if not userRiverName:
+        logging.info("Process terminated by user\n")
+        exit()
 
     # Resistivity files
-    res_folder = askdirectory(title="Select folder that contains all raw resistivity files for processing...")  # show an "Open" dialog box and return the path to the selected file
-    if not glob.glob('{}/*.txt'.format(res_folder)):
-        tkMessageBox.showerror("FILE ERROR", "No resistivity files contained within folder or incorrect format")
-        logging.error("No text files found within selected resistivity folder\n")
+    # show an "Open" dialog box and return the path to the selected file
+    res_folder = askopenfilenames(title="Select files that contain all raw resistivity files for processing...",
+                                  filetypes=(("text files", "*.txt"), ("all files", "*.*")))
+    if not res_folder:
+        logging.info("Process terminated by user\n")
+        exit()
+
+    # See if we can use resistivity file name as path for future askopenfilename(s)
+    try:
+        os.path.dirname(res_folder[0])
+    except IndexError:
+        tkMessageBox.showerror("FILE ERROR", "Invalid resistivity file name")
+        logging.error("Invalid resistivity file name or no resistivity text file selected\n")
         exit()
 
     # Water Quality Files
-    wq_folder = askdirectory(title="Select folder that contains all raw water-quality data for processing...", initialdir=res_folder)
-    if not glob.glob('{}/*.csv'.format(wq_folder)):
-        tkMessageBox.showerror("FILE ERROR", "No water quality files contained within folder or incorrect format")
-        logging.error("No csv files found within the selected water quality folder\n")
+    wq_folder = askopenfilenames(title="Select files that contain all raw water-quality data for processing...",
+                                 initialdir=os.path.dirname(res_folder[0]),
+                                 filetypes=(("csv files", "*.csv"), ("all files", "*.*")))
+    if not wq_folder:
+        logging.info("Process terminated by user\n")
         exit()
 
     # Initialization File
-    ini_file = askopenfilename(title="Select ini file used to collect the resistivity data",filetypes=[("INI Files", "*.ini")], initialdir=res_folder)
+    ini_file = askopenfilename(title="Select ini file used to collect the resistivity data",
+                               filetypes=[("INI Files", "*.ini")], initialdir=os.path.dirname(res_folder[0]))
     if not ini_file:
-        tkMessageBox.showerror("FILE ERROR", "No INI file selected")
-        logging.error("No INI file selected by the user\n")
+        logging.info("Process terminated by user\n")
         exit()
 
     # Save File Location
-    directory = askdirectory(title="Select directory to save the reordered resistivity and water-quality data", initialdir=res_folder)
+    directory = askdirectory(title="Select directory to save the reordered resistivity and water-quality data",
+                             initialdir=os.path.dirname(res_folder[0]))
+    if not directory:
+        logging.info("Process terminated by user\n")
+        exit()
 
     # %% -----------------------------------------------------------------------------------------------------------------
     path = directory + r'/Raw_Data_Renamed'
@@ -289,18 +327,17 @@ def oasis():
                 "Longitude", "In_p", "In_n", "V1_p", "V1_n", "V2_p", "V2_n", "V3_p", "V3_n", "V4_p", "V4_n", "V5_p", "V5_n",
                 "V6_p", "V6_n", "V7_p", "V7_n", "V8_p", "V8_n", "V9_p", "V9_n", "V10_p", "V10_n", "GPSString", "HDOP",
                 "EXTRANEOUS"]
-    outfilename = "{}\\all.txt".format(res_folder)
+    outfilename = "{}\\all.txt".format(os.path.dirname(res_folder[0]))
     # Grab starting and ending points of each survey to reorder
     # NOTE: THIS ASSUMES CONTINUITY WITHIN SURVEY - NO TURNING BOAT AROUND WITHIN SURVEY LINE
     subset = pd.DataFrame(columns=["StartLat", "EndLat", "StartLong", "EndLong", "Filename"])
     excludeSurveys = pd.DataFrame(columns=["Filename", "Number_of_Data_Points"])
-    for filename in glob.glob('{}/*.txt'.format(res_folder)):
+    for filename in res_folder:
         if filename == outfilename:
             continue
         # print(filename)
         temp = pd.read_csv(filename, sep=';').reset_index()
         temp.columns = colNames
-
 
         # Check if survey is bad (500m or 100 point threshold)
         if len(temp) < 100:
@@ -628,7 +665,9 @@ def oasis():
 
     #%%
     logging.info("Saving processed resistivity file\n")
-    saveRes = asksaveasfilename(initialfile='{}_Res.csv'.format(userRiverName),defaultextension='.csv',title="Designate resitivity csv name and location", filetypes=[('csv file', '*.csv')])
+    saveRes = asksaveasfilename(initialfile='{}_Res.csv'.format(userRiverName), defaultextension='.csv',
+                                title="Designate resitivity csv name and location", filetypes=[('csv file', '*.csv')],
+                                initialdir=os.path.dirname(res_folder[0]))
     try:
         importfile1.to_csv(saveRes, index=False)
     except IOError:
@@ -644,7 +683,7 @@ def oasis():
     # NOTE: THIS ASSUMES CONTINUITY WITHIN SURVEY - NO TURNING BOAT AROUND WITHIN SURVEY LINE
     wqsubset = pd.DataFrame(columns=["StartLat", "EndLat", "StartLong", "EndLong", "Filename"])
     wqexcludeSurveys = pd.DataFrame(columns=["Filename", "Number_of_Data_Points"])
-    for filename in glob.glob('{}/*.csv'.format(wq_folder)):
+    for filename in wq_folder:
         temp = pd.read_csv(filename, sep=',', skiprows=12, index_col=False, engine='python', encoding='utf-16',
                            names=["Date", "Time", "°C", "mmHg", "DO %", "SPC-uS/cm", "C-uS/cm", "ohm-cm", "pH",
                                   "NH4-N mg/L", "NO3-N mg/L", "Cl mg/L", "FNU", "TSS mg/L", "DEP m", "ALT m", "Lat", "Lon"])
@@ -1012,10 +1051,6 @@ logging.basicConfig(filename=os.getcwd()+"\\PREPROCESSING_LOGFILE.txt", format='
                     datefmt='%m/%d/%Y %I:%M:%S %p', filemode='w', level=logging.INFO)
 
 sys.excepthook = catchEmAll
-
-# ret_val = eg.msgbox("USGS Workbench Preprocessor and Data Release Utility")
-# if ret_val is None: # User closed eg.msgbox
-#     sys.exit(0)
 
 title ="USGS Oasis/Workbench Preprocessor and Data Release Utility"
 msg = "Choose which utility you would like to use"
