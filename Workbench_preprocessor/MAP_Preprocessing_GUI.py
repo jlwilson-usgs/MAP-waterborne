@@ -665,9 +665,7 @@ def oasis():
 
     #%%
     logging.info("Saving processed resistivity file\n")
-    saveRes = asksaveasfilename(initialfile='{}_Res.csv'.format(userRiverName), defaultextension='.csv',
-                                title="Designate resitivity csv name and location", filetypes=[('csv file', '*.csv')],
-                                initialdir=os.path.dirname(res_folder[0]))
+    saveRes = os.path.join(directory, userRiverName + "_Res.csv")
     try:
         importfile1.to_csv(saveRes, index=False)
     except IOError:
@@ -886,9 +884,9 @@ def oasis():
     #%%
     #Exporting resistivity data as a shapefile
     logging.info("Saving processed water-quality shapefile\n")
-    saveWQshp = asksaveasfilename(initialfile='{}_WQ.shp'.format(userRiverName),defaultextension='.shp',title="Designate water-quality shapefile name and location", filetypes=[('shp file', '*.shp')], initialdir=directory)
+    saveWQshp = os.path.join(directory, userRiverName + "_WQ.shp")
     try:
-        qwdata.to_file(saveWQshp,driver='ESRI Shapefile')
+        qwdata.to_file(saveWQshp, driver='ESRI Shapefile')
     except IOError:
         logging.critical("Error: could not save processed water-quality data to shapefile.  Ensure file is not open.")
         tkMessageBox.showerror("FILE ERROR", "Could not save processed water-quality data to shapefile.  Ensure filename is not open.")
@@ -928,9 +926,9 @@ def oasis():
 
     #%%
     logging.info("Saving preliminary merged QW/resistivity shapefile\n")
-    savepreres = asksaveasfilename(initialfile='{}_Merged_QWRes.shp'.format(userRiverName),defaultextension='.shp',title="Designate preliminary merged QW/resitivity shapefile name and location", filetypes=[('shp file', '*.shp')], initialdir=directory)
+    savepreres = os.path.join(directory, userRiverName + "_Merged_QWRes.shp")
     try:
-        resOhm.to_file(savepreres,driver='ESRI Shapefile')
+        resOhm.to_file(savepreres, driver='ESRI Shapefile')
     except IOError:
         logging.critical("Error: could not save preliminary merged QW/resistivity data to shapefile.  Ensure file is not open.")
         tkMessageBox.showerror("FILE ERROR", "Could not save preliminary merged QW/resistivity data to shapefile.  Ensure filename is not open.")
@@ -942,7 +940,7 @@ def oasis():
 
     #%%
     logging.info("Export preliminary merged QW/resisitivty data\n")
-    resOhm_csv = asksaveasfilename(initialfile='{}_Merged_WQRes.csv'.format(userRiverName),defaultextension='.csv',title="Designate preliminary merged QW/resisitivty csv name and location", filetypes=[('csv file', '*.csv')], initialdir=directory)
+    resOhm_csv = os.path.join(directory, userRiverName + "_Merged_WQRes.csv")
     try:
         resOhm_df.to_csv(resOhm_csv, index=False)
     except IOError:
@@ -957,7 +955,7 @@ def oasis():
 
     #%%
     logging.info("Export water quality data\n")
-    saveQW = asksaveasfilename(initialfile='{}_WQ.csv'.format(userRiverName),defaultextension='.csv',title="Designate water-quality csv name and location", filetypes=[('csv file', '*.csv')], initialdir=directory)
+    saveQW = os.path.join(directory, userRiverName + "_WQ.csv")
     try:
         qwdata.to_csv(saveQW, index=False)
     except IOError:
