@@ -261,8 +261,6 @@ def oasis():
 
     # %% -----------------------------------------------------------------------------------------------------------------
     Tk().withdraw()
-    tkMessageBox.showinfo("Directions", "For this script to work, you must have all resistivity .txt files that you want to combine in one folder. All QW .csv files must also be in one folder. It may be the same folder.")
-
     userRiverName = tkSimpleDialog.askstring("River Reach", "Please enter the name of the river reach...",
                                              initialvalue="RIVER")
     if not userRiverName:
@@ -682,9 +680,19 @@ def oasis():
     wqsubset = pd.DataFrame(columns=["StartLat", "EndLat", "StartLong", "EndLong", "Filename"])
     wqexcludeSurveys = pd.DataFrame(columns=["Filename", "Number_of_Data_Points"])
     for filename in wq_folder:
-        temp = pd.read_csv(filename, sep=',', skiprows=12, index_col=False, engine='python', encoding='utf-16',
-                           names=["Date", "Time", "°C", "mmHg", "DO %", "SPC-uS/cm", "C-uS/cm", "ohm-cm", "pH",
-                                  "NH4-N mg/L", "NO3-N mg/L", "Cl mg/L", "FNU", "TSS mg/L", "DEP m", "ALT m", "Lat", "Lon"])
+        try:
+            temp = pd.read_csv(filename, sep=',', skiprows=12, index_col=False, engine='python', encoding='utf-16',
+                               names=["Date", "Time", "°C", "mmHg", "DO %", "SPC-uS/cm", "C-uS/cm", "ohm-cm", "pH",
+                                      "NH4-N mg/L", "NO3-N mg/L", "Cl mg/L", "FNU", "TSS mg/L", "DEP m", "ALT m",
+                                      "Lat", "Lon"])
+        except UnicodeError:
+            logging.critical("UnicodeError: could not read water quality data.  Check that file is in unicode format.")
+            tkMessageBox.showerror("FILE ERROR", "Could not open water quality file.  Please check file format")
+            exit()
+        except IOError:
+            logging.critical("IOError: could not read water quality data.  Check that file is in correct format.")
+            tkMessageBox.showerror("FILE ERROR", "Could not open water quality file.  Please check file format")
+            exit()
 
         # Check if survey is bad (only one entry)
         if len(temp) < 2:
@@ -716,8 +724,9 @@ def oasis():
                                                 columns=["StartLat", "EndLat", "StartLong", "EndLong", "Filename"])).reset_index(drop=True)
 
     # Track files that were removed due to their length
-    logging.info("Writing excluded surveys to file\n")
-    wqexcludeSurveys.to_csv(path + r"\\EXCLUDED_SURVEYS_WQ.txt", index=False)
+    if len(wqexcludeSurveys) > 0:
+        logging.info("Writing excluded surveys to file\n")
+        wqexcludeSurveys.to_csv(path + r"\\EXCLUDED_SURVEYS_WQ.txt", index=False)
 
 
     # Reorganize files based upon their location to one another
