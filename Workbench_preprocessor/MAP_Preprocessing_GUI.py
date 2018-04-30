@@ -587,8 +587,8 @@ def oasis():
     # Import INI file
     try:
         ini = pd.read_csv(ini_file, index_col=None, sep='=')
-        depthoffset = float(ini.ix['DepthOffset', '[SwitchPro]'])
-        if depthoffset > 0:
+        depthoffset = abs(float(ini.ix['DepthOffset', '[SwitchPro]']))
+        if depthoffset < 0:
             tkMessageBox.showwarning("WARNING", "Positive value for depth offset from INI file")
             logging.warning("Positive value for depth offset from ini file\n")
     except:
@@ -600,7 +600,7 @@ def oasis():
     # Applying the bandpass filter and rolling average
     logging.info("Applying bandpass filter\n")
     for x in range(1,11):
-        band_pass(importfile,'Rho {}'.format(x),0,250)
+        band_pass(importfile,'Rho {}'.format(x),0,500)
         rolling_avg(importfile, 'Rho {}'.format(x), 'Rho {}_bandpass'.format(x), 20)
 
     #%%
@@ -622,7 +622,7 @@ def oasis():
     #%%
     # Filtering Altitude via rolling median filter
     logging.info("Filtering altitude via rolling median filter\n")
-    rolling_median(importfile, 'Altitude', 'Altitude', 20)
+    rolling_median(importfile, 'Altitude', 'Altitude', 50)
 
     #%%
     #Rounding Altitude to the decimeter
@@ -843,6 +843,7 @@ def oasis():
     qwdata.rename(columns={'°C':'Temp_C', 'SPC-uS/cm': 'SPC_mscm','C-uS/cm':'Cond_mscm','ohm-cm':'Res_ocm','ALT m':'Alt_m'}, inplace=True)
     try:
         qwdata = qwdata.loc[qwdata.Res_ocm!="    +++++",:]
+        qwdata = qwdata.loc[qwdata.Res_ocm != "    -----", :]
     except:
         pass
     qwdata['Res_ocm'] = qwdata['Res_ocm'].astype('float')
@@ -850,7 +851,7 @@ def oasis():
 
     # %% -----------------------------------------------------------------------------------------------------------------
     # Applying a rolling average on resistivity
-    rolling_avg(qwdata, 'Ohm_m', 'Ohm_m', 20)
+    rolling_avg(qwdata, 'Ohm_m', 'Ohm_m', 25)
 
     #%%
     for col in qwdata.columns[1:]:
