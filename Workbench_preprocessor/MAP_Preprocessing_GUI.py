@@ -164,10 +164,10 @@ def workbench_checks():
     for x in out['Profile'].unique():
         for s in range(1,11):
             if np.max(out['Rho_{}'.format(s)][out['Profile']==x])>mult*(scipy.stats.mstats.mquantiles(out['Rho_{}'.format(s)][out['Profile']==x])[2]):
-                tkMessageBox.showwarning("WARNING", "Maximum Rho_{} in row {} larger than {} times the 3rd quantile of Line {}".format(s,out.index[out['Rho_{}'.format(s)]==np.max(out['Rho_{}'.format(s)][out['Profile']==x])][0]+2,mult,x))
+                # tkMessageBox.showwarning("WARNING", "Maximum Rho_{} in row {} larger than {} times the 3rd quantile of Line {}".format(s,out.index[out['Rho_{}'.format(s)]==np.max(out['Rho_{}'.format(s)][out['Profile']==x])][0]+2,mult,x))
                 logging.warning('Maximum Rho_{} in row {} larger than {} times the 3rd quartile of Line {}'.format(s,out.index[out['Rho_{}'.format(s)]==np.max(out['Rho_{}'.format(s)][out['Profile']==x])][0]+2,mult,x))
             elif np.min(out['Rho_{}'.format(s)][out['Profile']==x])<1/mult*(scipy.stats.mstats.mquantiles(out['Rho_{}'.format(s)][out['Profile']==x])[0]):
-                tkMessageBox.showwarning("WARNING", "Minimum Rho_{} in row {} smaller than 1/{} times the 1st quartile of Line {}".format(s,out.index[out['Rho_{}'.format(s)]==np.min(out['Rho_{}'.format(s)][out['Profile']==x])][0]+2,mult,x))
+                # tkMessageBox.showwarning("WARNING", "Minimum Rho_{} in row {} smaller than 1/{} times the 1st quartile of Line {}".format(s,out.index[out['Rho_{}'.format(s)]==np.min(out['Rho_{}'.format(s)][out['Profile']==x])][0]+2,mult,x))
                 logging.warning("Minimum Rho_{} in row {} smaller than 1/{} times the 1st quartile of Line {}".format(s,out.index[out['Rho_{}'.format(s)]==np.min(out['Rho_{}'.format(s)][out['Profile']==x])][0]+2,mult,x))
             else:
                 pass
@@ -176,20 +176,20 @@ def workbench_checks():
     # QW checks
     for x in out['Profile'].unique():
         if np.max(out['/Water_Res'][out['Profile']==x])>mult*(scipy.stats.mstats.mquantiles(out['/Water_Res'][out['Profile']==x])[2]):
-            tkMessageBox.showwarning("WARNING", "Maximum Water_Res in row {} larger than {} times the 3rd quantile of Line {}".format(out.index[out['/Water_Res']==np.max(out['/Water_Res'][out['Profile']==x])][0]+2,mult,x))
+            # tkMessageBox.showwarning("WARNING", "Maximum Water_Res in row {} larger than {} times the 3rd quantile of Line {}".format(out.index[out['/Water_Res']==np.max(out['/Water_Res'][out['Profile']==x])][0]+2,mult,x))
             logging.warning('Maximum Water_Res in row {} larger than {} times the 3rd quartile of Line {}'.format(out.index[out['/Water_Res']==np.max(out['/Water_Res'][out['Profile']==x])][0]+2,mult,x))
         elif np.min(out['/Water_Res'][out['Profile']==x])<1/mult*(scipy.stats.mstats.mquantiles(out['/Water_Res'][out['Profile']==x])[0]):
-            tkMessageBox.showwarning("WARNING", "Minimum Water_Res in row {} smaller than 1/{} times the 1st quartile of Line {}".format(s,out.index[out['/Water_Res']==np.min(out['/Water_Res'][out['Profile']==x])][0]+2,mult,x))
+            # tkMessageBox.showwarning("WARNING", "Minimum Water_Res in row {} smaller than 1/{} times the 1st quartile of Line {}".format(s,out.index[out['/Water_Res']==np.min(out['/Water_Res'][out['Profile']==x])][0]+2,mult,x))
             logging.warning("Minimum Water_Res in row {} smaller than 1/{} times the 1st quartile of Line {}".format(out.index[out['/Water_Res']==np.min(out['/Water_Res'][out['Profile']==x])][0]+2,mult,x))
         else:
             pass
 
     # Altitude checks
         if np.max(out['Final_Altitude'][out['Profile']==x])>mult*(scipy.stats.mstats.mquantiles(out['Final_Altitude'][out['Profile']==x])[2]):
-            tkMessageBox.showwarning("WARNING", "Maximum Altitude in row {} larger than {} times the 3rd quantile of Line {}".format(out.index[out['Final_Altitude']==np.max(out['Final_Altitude'][out['Profile']==x])][0]+2,mult,x))
+            # tkMessageBox.showwarning("WARNING", "Maximum Altitude in row {} larger than {} times the 3rd quantile of Line {}".format(out.index[out['Final_Altitude']==np.max(out['Final_Altitude'][out['Profile']==x])][0]+2,mult,x))
             logging.warning('Maximum Altitude in row {} larger than {} times the 3rd quartile of Line {}'.format(out.index[out['Final_Altitude']==np.max(out['Final_Altitude'][out['Profile']==x])][0]+2,mult,x))
         elif np.min(out['Final_Altitude'][out['Profile']==x])<1/mult*(scipy.stats.mstats.mquantiles(out['Final_Altitude'][out['Profile']==x])[0]):
-            tkMessageBox.showwarning("WARNING", "Minimum Altitude in row {} smaller than 1/{} times the 1st quartile of Line {}".format(out.index[out['Final_Altitude']==np.min(out['Final_Altitude'][out['Profile']==x])][0]+2,mult,x))
+            # tkMessageBox.showwarning("WARNING", "Minimum Altitude in row {} smaller than 1/{} times the 1st quartile of Line {}".format(out.index[out['Final_Altitude']==np.min(out['Final_Altitude'][out['Profile']==x])][0]+2,mult,x))
             logging.warning("Minimum Altitude in row {} smaller than 1/{} times the 1st quartile of Line {}".format(out.index[out['Final_Altitude']==np.min(out['Final_Altitude'][out['Profile']==x])][0]+2,mult,x))
         else:
             pass
@@ -202,7 +202,7 @@ def workbench_checks():
         for t in range(0,len(out.columns)):
             for x in range(0,len(out.Profile)):
                 if nulls.ix[x,t]:
-                    tkMessageBox.showwarning("WARNING", "Blank {} cell in row {}".format(out.columns.values[t],x+2))
+                    # tkMessageBox.showwarning("WARNING", "Blank {} cell in row {}".format(out.columns.values[t],x+2))
                     logging.warning('Blank {} cell in row {}'.format(out.columns.values[t],x+2))
                 else:
                     pass
@@ -235,13 +235,13 @@ def oasis():
     # Defining rolling average filter
     def rolling_avg(df, column1, column2, width):
         df[column1+'_rollavg']=df[column2]
-        df[column1+'_rollavg']= df[column1+'_rollavg'].rolling(width, min_periods=1).mean()
+        df[column1+'_rollavg']= df[column1+'_rollavg'].fillna(method='ffill').rolling(width, min_periods=1).mean()
 
     #%%
     # Defining the rolling median filter
     def rolling_median(df, column1, column2, width):
         df[column1+'_rollmed']=df[column2]
-        df[column1+'_rollmed']= df[column1+'_rollmed'].rolling(width, min_periods=1).median()
+        df[column1+'_rollmed']= df[column1+'_rollmed'].fillna(method='ffill').rolling(width, min_periods=1).median()
 
     def haversine(lon1, lat1, lon2, lat2):
         """
