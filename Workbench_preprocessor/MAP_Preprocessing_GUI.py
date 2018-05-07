@@ -36,7 +36,6 @@ import os
 from shapely.geometry import Point
 import geopandas as gp
 import numpy as np
-import glob
 from math import radians, cos, sin, asin, sqrt
 from shutil import copyfile
 import logging
@@ -215,7 +214,7 @@ def workbench_checks():
 #%%
 def oasis():
     #%%
-    global userRiverName, importfile, importfile1
+    global userRiverName, importfile, importfile1, wqreorderedSubset, wqsubset,temp,resOhm_df
     # Supressing depreciation warning from output
 
     #%%
@@ -682,7 +681,7 @@ def oasis():
     for filename in wq_folder:
         try:
             temp = pd.read_csv(filename, sep=',', skiprows=12, index_col=False, engine='python', encoding='utf-16',
-                               names=["Date", "Time", "°C", "mmHg", "DO %", "SPC-uS/cm", "C-uS/cm", "ohm-cm", "pH",
+                               names=["Date", "Time", "°C", "mmHg", "DO %", "SPC-uS/cm", "ohm-cm", "pH",
                                       "NH4-N mg/L", "NO3-N mg/L", "Cl mg/L", "FNU", "TSS mg/L", "DEP m", "ALT m",
                                       "Lat", "Lon"])
         except UnicodeError:
@@ -947,6 +946,7 @@ def oasis():
 
     #%%
     resOhm_df = resOhm.drop('geometry',axis=1)
+    resOhm_df.rename(columns={'Date_left':'Date'}, inplace=True)
 
     #%%
     logging.info("Export preliminary merged QW/resisitivty data\n")
@@ -1020,7 +1020,7 @@ def oasis():
         #%%
         dr_raw=importfile[['File','Date','UTC','Depth','Lat','Lon','Altitude','Cum_dist','In_n','In_p','V1_n','V1_p','V2_n','V2_p','V3_n','V3_p','V4_n','V4_p','V5_n','V5_p','V6_n','V6_p','V7_n','V7_p','V8_n','V8_p','V9_n','V9_p','V10_n','V10_p','Rho 1','Rho 2','Rho 3','Rho 4','Rho 5','Rho 6','Rho 7','Rho 8','Rho 9','Rho 10','C1','C2','P1','P2','P3','P4','P5','P6','P7','P8','P9','P10','P11']]
 
-        dr_post=importfile[['File','Date','UTC','Depth_rollavg','Ohm_m','Lat','Lon','Altitude_rollmed','Cum_dist','Rho 1_rollavg','Rho 2_rollavg','Rho 3_rollavg','Rho 4_rollavg','Rho 5_rollavg','Rho 6_rollavg','Rho 7_rollavg','Rho 8_rollavg','Rho 9_rollavg','Rho 10_rollavg']]
+        dr_post=resOhm_df[['File','Date','UTC','Depth_rollavg','Ohm_m','Lat','Lon','Altitude_rollmed','Cum_dist','Rho 1_rollavg','Rho 2_rollavg','Rho 3_rollavg','Rho 4_rollavg','Rho 5_rollavg','Rho 6_rollavg','Rho 7_rollavg','Rho 8_rollavg','Rho 9_rollavg','Rho 10_rollavg']]
         #%%
         dr_raw['Iris_SN']=fieldValues[0]
         dr_raw['Cable_SN']=fieldValues[1]
@@ -1032,12 +1032,12 @@ def oasis():
         dr_post['Echo_GPS_SN']=fieldValues[2]
         dr_post['QW_SN']=fieldValues[3]
 
-        dr_raw.rename(columns={'File':'Profile','UTC':'Time','Lat':'Latitude','Lon':'Longitude','Cum_dist':'UTM_distance','Rho 1':'Rho_1','Rho 2':'Rho_2','Rho 3':'Rho_3','Rho 4':'Rho_4','Rho 5':'Rho_5','Rho 6':'Rho_6','Rho 7':'Rho_7','Rho 8':'Rho_8','Rho 9':'Rho_9','Rho 10':'Rho_10','Altitude':'Elevation'}, inplace=True)
+        dr_raw.rename(columns={'File':'Profile','UTC':'Time','Lat':'Latitude','Lon':'Longitude','Cum_dist':'UTM_distance','Rho 1':'Rho1','Rho 2':'Rho2','Rho 3':'Rho3','Rho 4':'Rho4','Rho 5':'Rho5','Rho 6':'Rho6','Rho 7':'Rho7','Rho 8':'Rho8','Rho 9':'Rho9','Rho 10':'Rho10','Altitude':'Elevation'}, inplace=True)
 
-        dr_post.rename(columns={'File':'Profile','UTC':'Time','Lat':'Latitude','Lon':'Longitude','Cum_dist':'UTM_distance','Rho 1_rollavg':'Rho1','Rho 2_rollavg':'Rho2','Rho 3_rollavg':'Rho3','Rho 4_rollavg':'Rho4','Rho 5_rollavg':'Rho5','Rho 6_rollavg':'Rho6','Rho 7_rollavg':'Rho7','Rho 8_rollavg':'Rho8','Rho 9_rollavg':'Rho9','Rho 10_rollavg':'Rho10','Altitude':'Elevation','Ohm_m':'Water_Res'}, inplace=True)
+        dr_post.rename(columns={'File':'Profile','UTC':'Time','Depth_rollavg':'Depth','Lat':'Latitude','Lon':'Longitude','Cum_dist':'UTM_distance','Rho 1_rollavg':'Rho1','Rho 2_rollavg':'Rho2','Rho 3_rollavg':'Rho3','Rho 4_rollavg':'Rho4','Rho 5_rollavg':'Rho5','Rho 6_rollavg':'Rho6','Rho 7_rollavg':'Rho7','Rho 8_rollavg':'Rho8','Rho 9_rollavg':'Rho9','Rho 10_rollavg':'Rho10','Altitude_rollmed':'Elevation','Ohm_m':'Water_Res'}, inplace=True)
 
-        raw = eg.filesavebox(title="Save raw data release file as...",default='{}_Raw_DataRelease.csv'.format(userRiverName),filetypes=['*.csv'])
-        post = eg.filesavebox(title="Save prcoessed data release file as...",default='{}_Processed_DataRelease.csv'.format(userRiverName),filetypes=['*.csv'])
+        raw = eg.filesavebox(title="Save raw data release file as...",default=os.path.dirname(res_folder[0])+'\{}_Raw_DataRelease.csv'.format(userRiverName),filetypes=['*.csv'])
+        post = eg.filesavebox(title="Save prcoessed data release file as...",default=os.path.dirname(res_folder[0])+'{}_Processed_DataRelease.csv'.format(userRiverName),filetypes=['*.csv'])
         dr_post.to_csv(post, index=False)
         dr_raw.to_csv(raw, index=False)
     else:
