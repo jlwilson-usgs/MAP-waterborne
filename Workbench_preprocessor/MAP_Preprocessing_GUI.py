@@ -1001,7 +1001,7 @@ def oasis():
         msg='Fill in the values'
         title='Data Release Form'
         fieldValues=['18705-4177458684-507','0117352673-87','1532702SCSC','16F102579']
-        eg.multenterbox(msg,title,fieldNames, fieldValues)
+        fieldValues=eg.multenterbox(msg,title,fieldNames, fieldValues)
         if fieldValues is None:
             sys.exit(0)
 
