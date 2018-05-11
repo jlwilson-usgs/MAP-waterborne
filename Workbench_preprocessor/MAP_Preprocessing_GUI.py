@@ -1036,8 +1036,8 @@ def oasis():
 
         dr_post.rename(columns={'File':'Profile','UTC':'Time','Depth_rollavg':'Depth','Lat':'Latitude','Lon':'Longitude','Cum_dist':'UTM_distance','Rho 1_rollavg':'Rho1','Rho 2_rollavg':'Rho2','Rho 3_rollavg':'Rho3','Rho 4_rollavg':'Rho4','Rho 5_rollavg':'Rho5','Rho 6_rollavg':'Rho6','Rho 7_rollavg':'Rho7','Rho 8_rollavg':'Rho8','Rho 9_rollavg':'Rho9','Rho 10_rollavg':'Rho10','Altitude_rollmed':'Elevation','Ohm_m':'Water_Res'}, inplace=True)
 
-        dr_post.to_csv(directory + "_Processed_DataRelease.csv", index=False)
-        dr_raw.to_csv(directory + "_Raw_DataRelease.csv", index=False)
+        dr_post.to_csv(directory + "\\_Processed_DataRelease.csv", index=False)
+        dr_raw.to_csv(directory + "\\_Raw_DataRelease.csv", index=False)
     else:
        if choice=="Oasis Preprocessor":
            sys.exit(0)
