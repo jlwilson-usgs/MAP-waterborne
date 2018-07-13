@@ -995,6 +995,22 @@ def oasis():
     summaryFile.write("\n\n")
     summaryFile.close()
     #%%
+
+
+def data_release():
+    # Input request
+    Tk().withdraw()
+    directory = askdirectory(title="Select directory to save the data release files",
+                             initialdir=os.getcwd())
+    file_raw = askopenfilename(title="Select raw resistivity data file from Preprocessing GUI",
+                               filetypes=[("csv files", "*.csv")], initialdir=directory)
+    file_post = askopenfilename(title="Select processed workbench file to convert to data release format",
+                                filetypes=[("csv files", "*.csv"), ("All files", "*.*")], initialdir=directory)
+
+    # Read data
+    df_raw = pd.read_csv(file_raw)
+    df_post = pd.read_csv(file_post)
+
     # Data Release
     if eg.ynbox(title='Data Release Utility',msg='Do you want to export raw and processed data in a data release format?'):
         fieldNames=['Iris Serial Number','Cable Serial Number','EchoSounder GPS Serial Number','QW Probe Serial Number']
@@ -1016,11 +1032,16 @@ def oasis():
             fieldValues = eg.multenterbox(errmsg, title, fieldNames, fieldValues)
             if fieldValues is None:
                 break
-
+        # print(df_raw.loc[:, ["File", "Date"]])
         #%%
-        dr_raw=importfile[['File','Date','UTC','Depth','Lat','Lon','Altitude','Cum_dist','In_n','In_p','V1_n','V1_p','V2_n','V2_p','V3_n','V3_p','V4_n','V4_p','V5_n','V5_p','V6_n','V6_p','V7_n','V7_p','V8_n','V8_p','V9_n','V9_p','V10_n','V10_p','Rho 1','Rho 2','Rho 3','Rho 4','Rho 5','Rho 6','Rho 7','Rho 8','Rho 9','Rho 10','C1','C2','P1','P2','P3','P4','P5','P6','P7','P8','P9','P10','P11']]
+        dr_raw=df_raw.loc[:, ['File','Date','UTC','Depth','Lat','Lon','Altitude','Cum_dist','In_n','In_p','V1_n','V1_p',
+                              'V2_n','V2_p','V3_n','V3_p','V4_n','V4_p','V5_n','V5_p','V6_n','V6_p','V7_n','V7_p',
+                              'V8_n','V8_p','V9_n','V9_p','V10_n','V10_p','Rho 1','Rho 2','Rho 3','Rho 4','Rho 5',
+                              'Rho 6','Rho 7','Rho 8','Rho 9','Rho 10','C1','C2','P1','P2','P3','P4','P5','P6','P7',
+                              'P8','P9','P10','P11']]
+        dr_post=df_post.loc[:, ['Profile','Date','Time','Cor_Depth','Lat','Lon','Cor_Dist','Rho_1','Rho_2','Rho_3',
+                                'Rho_4','Rho_5','Rho_6','Rho_7','Rho_8','Rho_9','Rho_10','Final_Altitude','/Water_Res']]
 
-        dr_post=resOhm_df[['File','Date','UTC','Depth_rollavg','Ohm_m','Lat','Lon','Altitude_rollmed','Cum_dist','Rho 1_rollavg','Rho 2_rollavg','Rho 3_rollavg','Rho 4_rollavg','Rho 5_rollavg','Rho 6_rollavg','Rho 7_rollavg','Rho 8_rollavg','Rho 9_rollavg','Rho 10_rollavg']]
         #%%
         dr_raw['Iris_SN']=fieldValues[0]
         dr_raw['Cable_SN']=fieldValues[1]
@@ -1032,9 +1053,12 @@ def oasis():
         dr_post['Echo_GPS_SN']=fieldValues[2]
         dr_post['QW_SN']=fieldValues[3]
 
-        dr_raw.rename(columns={'File':'Profile','UTC':'Time','Lat':'Latitude','Lon':'Longitude','Cum_dist':'UTM_distance','Rho 1':'Rho1','Rho 2':'Rho2','Rho 3':'Rho3','Rho 4':'Rho4','Rho 5':'Rho5','Rho 6':'Rho6','Rho 7':'Rho7','Rho 8':'Rho8','Rho 9':'Rho9','Rho 10':'Rho10','Altitude':'Elevation'}, inplace=True)
+        dr_raw.rename(columns={'File':'Profile','UTC':'Time','Lat':'Latitude','Lon':'Longitude',
+                               'Cum_dist':'UTM_distance','Rho 1':'Rho1','Rho 2':'Rho2','Rho 3':'Rho3','Rho 4':'Rho4',
+                               'Rho 5':'Rho5','Rho 6':'Rho6','Rho 7':'Rho7','Rho 8':'Rho8','Rho 9':'Rho9',
+                               'Rho 10':'Rho10','Altitude':'Elevation'}, inplace=True)
 
-        dr_post.rename(columns={'File':'Profile','UTC':'Time','Depth_rollavg':'Depth','Lat':'Latitude','Lon':'Longitude','Cum_dist':'UTM_distance','Rho 1_rollavg':'Rho1','Rho 2_rollavg':'Rho2','Rho 3_rollavg':'Rho3','Rho 4_rollavg':'Rho4','Rho 5_rollavg':'Rho5','Rho 6_rollavg':'Rho6','Rho 7_rollavg':'Rho7','Rho 8_rollavg':'Rho8','Rho 9_rollavg':'Rho9','Rho 10_rollavg':'Rho10','Altitude_rollmed':'Elevation','Ohm_m':'Water_Res'}, inplace=True)
+        dr_post.rename(columns={'Cor_Depth':'Depth', 'Cor_Dist':'UTM_distance', 'Final_Altitude':'Elevation'})
 
         dr_post.to_csv(directory + "\\_Processed_DataRelease.csv", index=False)
         dr_raw.to_csv(directory + "\\_Raw_DataRelease.csv", index=False)
@@ -1060,7 +1084,7 @@ sys.excepthook = catchEmAll
 
 title ="USGS Oasis/Workbench Preprocessor and Data Release Utility"
 msg = "Choose which utility you would like to use"
-choices = ["Oasis Preprocessor","Workbench Preprocessor","Oasis/Workbench Preprocessor"]
+choices = ["Oasis Preprocessor","Workbench Preprocessor","Oasis/Workbench Preprocessor","Data Release Utility","Exit"]
 
 while 1:
     choice = eg.buttonbox(msg, title, choices)
@@ -1075,3 +1099,7 @@ while 1:
         oasis()
         workbench()
         workbench_checks()
+    elif choice=="Data Release Utility":
+        data_release()
+    elif choice=="Exit":
+        sys.exit(0)
